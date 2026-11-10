@@ -191,7 +191,6 @@ def auth_logout():
 @app.get("/")
 def index():
     return send_file(os.path.join(app.root_path, "index.html"))
-    return render_template("index.html")
 
 
 @app.get("/api/placas")
