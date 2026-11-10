@@ -41,6 +41,9 @@ def init_db():
             )
         """)
         conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS admin_users_singleton_idx ON public.admin_users ((true))
+        """)
+        conn.execute("""
             CREATE INDEX IF NOT EXISTS scan_logs_scanned_at_idx
             ON public.scan_logs (scanned_at DESC)
         """)
@@ -51,8 +54,11 @@ def ensure_schema():
     if request.endpoint == "health":
         return None
     if not getattr(app, "_schema_checked", False):
-        init_db()
-        app._schema_checked = True
+        try:
+            init_db()
+            app._schema_checked = True
+        except Exception:
+            app.logger.exception("Database initialization failed")
 
 
 def json_error(message, status=400):
