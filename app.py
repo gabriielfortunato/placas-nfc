@@ -87,7 +87,8 @@ def valid_target(value):
         return False
     parsed = urlparse(value.strip())
     try:
-        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and parsed.port != 0 and not any(c.isspace() for c in value)
+        port = parsed.port
+        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and (port is None or 1 <= port <= 65535) and not any(c.isspace() for c in value)
     except ValueError:
         return False
 
@@ -230,11 +231,11 @@ def create_plate():
     name = str(data.get("clientName", "")).strip()
     category = data.get("category", "custom")
     target = str(data.get("targetUrl", "")).strip()
-    if not name or len(name) > 160:
+    if not isinstance(data.get("clientName"), str) or not name or len(name) > 160:
         return json_error("Informe um nome válido para o estabelecimento.")
     if not SLUG_RE.fullmatch(slug) or len(slug) > 80:
         return json_error("Identificador inválido. Use letras minúsculas, números e hífens.")
-    if category not in CATEGORIES:
+    if not isinstance(category, str) or category not in CATEGORIES:
         return json_error("Categoria inválida.")
     if not valid_target(target):
         return json_error("O destino deve ser uma URL completa iniciada por http:// ou https://.")
@@ -346,3 +347,14 @@ def internal_error(_error):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))
+
+
+@app.after_request
+def security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.path == "/" or request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
