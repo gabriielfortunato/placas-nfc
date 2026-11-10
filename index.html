@@ -10,6 +10,40 @@
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen">
 
+    <!-- SCRIPT DE REDIRECIONAMENTO AUTOMÁTICO (Executa antes de carregar o layout) -->
+    <script>
+        (function() {
+            // Busca placas salvas no localStorage
+            const placas = JSON.parse(localStorage.getItem('placas_nfc')) || [];
+            
+            // Verifica se a URL contém o parâmetro ?r=ID (ex: ?r=PLACA-001)
+            const urlParams = new URLSearchParams(window.location.search);
+            const placaId = urlParams.get('r');
+
+            if (placaId) {
+                // Procura a placa cadastrada no sistema
+                const placaEncontrada = placas.find(p => p.id.toLowerCase() === placaId.toLowerCase());
+
+                if (placaEncontrada && placaEncontrada.url) {
+                    // Esconde o corpo da página para não piscar o painel
+                    document.documentElement.style.display = 'none';
+                    
+                    // Garante que a URL tenha protocolo (http:// ou https://)
+                    let urlDestino = placaEncontrada.url;
+                    if (!urlDestino.startsWith('http://') && !urlDestino.startsWith('https://')) {
+                        urlDestino = 'https://' + urlDestino;
+                    }
+
+                    // Redireciona o visitante para o destino final da placa
+                    window.location.href = urlDestino;
+                } else {
+                    alert(`A placa "${placaId}" ainda não foi configurada no painel!`);
+                }
+            }
+        })();
+    </script>
+
+    <!-- PAINEL DE CONTROLE (Exibido apenas para você) -->
     <header class="bg-slate-900 text-white p-4 shadow-md">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold flex items-center gap-2">
@@ -25,7 +59,7 @@
             <h2 class="text-lg font-semibold text-slate-800 mb-3">Cadastrar Nova Placa</h2>
             <form id="form-cadastrar" class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <input type="text" id="input-id" placeholder="ID da Placa (ex: PLACA-001)" required class="border rounded p-2 text-sm focus:outline-blue-500">
-                <input type="url" id="input-url" placeholder="URL Inicial (opcional)" class="border rounded p-2 text-sm focus:outline-blue-500">
+                <input type="url" id="input-url" placeholder="URL de Destino Inicial" class="border rounded p-2 text-sm focus:outline-blue-500">
                 <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium p-2 rounded text-sm transition">
                     <i class="fas fa-plus"></i> Criar Placa
                 </button>
@@ -68,25 +102,33 @@
                 const card = document.createElement('div');
                 card.className = 'border rounded-lg p-4 bg-slate-50 flex flex-col justify-between space-y-3';
 
-                // URL fixa que será gravada no QR Code e Tag NFC
-                const urlFixaRedirecionamento = `https://${window.location.host}/r/${placa.id}`;
+                // URL Fixa gravada no QR Code / Tag NFC (usando parâmetro ?r=ID)
+                const baseUrl = window.location.origin + window.location.pathname;
+                const urlFixaRedirecionamento = `${baseUrl}?r=${placa.id}`;
 
                 card.innerHTML = `
                     <div>
-                        <span class="font-bold text-slate-900">${placa.id}</span>
-                        <p class="text-xs text-gray-500 truncate mt-1">Destino Atual: <a href="${placa.url || '#'}" target="_blank" class="text-blue-600 underline">${placa.url || 'Não configurado'}</a></p>
-                        <p class="text-xs text-gray-400 truncate mt-0.5">Link Fixo (QR/NFC): <span class="font-mono text-gray-600">${urlFixaRedirecionamento}</span></p>
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-slate-900">${placa.id}</span>
+                            <a href="${urlFixaRedirecionamento}" target="_blank" title="Testar Redirecionamento" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded">
+                                <i class="fas fa-external-link-alt"></i> Testar
+                            </a>
+                        </div>
+                        <p class="text-xs text-gray-500 truncate mt-1">Destino: <a href="${placa.url || '#'}" target="_blank" class="text-blue-600 underline font-medium">${placa.url || 'Não configurado'}</a></p>
+                        <p class="text-xs text-gray-400 truncate mt-0.5">Link no QR/NFC: <span class="font-mono text-gray-600">${urlFixaRedirecionamento}</span></p>
                     </div>
                     <div id="qr-${placa.id}" class="flex justify-center p-2 bg-white rounded border"></div>
                     <div class="flex gap-2">
-                        <button onclick="editarPlaca('${placa.id}')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded transition">Configurar Destino</button>
+                        <button onclick="editarPlaca('${placa.id}')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded transition">
+                            <i class="fas fa-edit"></i> Configurar Destino
+                        </button>
                         <button onclick="excluirPlaca('${placa.id}')" class="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-2 rounded transition">Excluir</button>
                     </div>
                 `;
 
                 container.appendChild(card);
 
-                // O QR Code agora é SEMPRE gerado com o link fixo do seu servidor
+                // O QR Code é gerado sempre com o link fixo com ?r=ID
                 new QRCode(document.getElementById(`qr-${placa.id}`), {
                     text: urlFixaRedirecionamento,
                     width: 120,
