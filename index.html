@@ -648,7 +648,7 @@
                               {/* Delete Button */}
                               <button
                                 onClick={() => handleDeletePlate(plate.id)}
-                                title="Excluir placa"
+                                title="Arquivar placa sem liberar o identificador"
                                 className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -980,7 +980,7 @@
                                   </div>
                                   <div>
                                     <p className="text-xs font-bold text-white">Redirecionamento Concluído</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Métrica +1 registrada no banco de dados.</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">Simulação visual; as métricas reais só mudam com uma leitura efetiva.</p>
                                   </div>
                                   <a
                                     href={simRedirectResult.targetUrl}
@@ -1123,7 +1123,7 @@
                       onClick={() => {
                         if (confirm('Atualizar os dados do banco de dados?')) { loadData().then(()=>showToast('Dados atualizados.')).catch(e=>showToast(e.message,'error')); }
                       }}
-                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-semibold text-xs px-4 py-2.5 rounded-xl"
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl"
                     >
                       Atualizar dados
                     </button>
