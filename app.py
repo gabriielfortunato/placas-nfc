@@ -6,11 +6,11 @@ from urllib.parse import urlparse
 
 import psycopg
 from psycopg.rows import dict_row
-from flask import Flask, jsonify, request, redirect, render_template, session
+from flask import Flask, jsonify, request, redirect, send_file, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder="static")
-app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.environ.get("SECRET_KEY") or "development-only-change-me"
+SECRET_CONFIGURED = bool(os.environ.get("FLASK_SECRET_KEY"))\napp.secret_key = os.environ.get("FLASK_SECRET_KEY") or "development-insecure-only"
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
