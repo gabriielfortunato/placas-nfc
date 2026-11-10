@@ -272,6 +272,10 @@ def update_plate(slug):
         if key not in data:
             continue
         value = data[key]
+        if key == "clientName":
+            value = str(value).strip()
+            if not value or len(value) > 160:
+                return json_error("Informe um nome válido para o estabelecimento.")
         if key == "targetUrl":
             value = str(value).strip()
             if not valid_target(value):
