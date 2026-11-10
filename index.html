@@ -1,1606 +1,192 @@
+from flask import Flask, request, redirect, jsonify, render_template_string
+import sqlite3
+
+app = Flask(_name_)
+
+# ==========================================
+# 1. FRONT-END (HTML + CSS + JS Integrados)
+# ==========================================
+HTML_PAINEL = """
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PlacaGO - Hub de Gestão de Placas NFC & QR Code Dinâmico</title>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#f0f9ff',
-              100: '#e0f2fe',
-              500: '#0284c7',
-              600: '#0284c7',
-              700: '#0369a1',
-              900: '#0c4a6e',
-            },
-            acrylic: {
-              gold: '#d4af37',
-              rose: '#b76e79',
-              clear: 'rgba(255, 255, 255, 0.15)',
-              dark: '#18181b'
-            }
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-          }
-        }
-      }
-    }
-  </script>
-
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <!-- React 18 & ReactDOM CDN -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
-  <!-- Babel Standalone for JSX compilation in browser -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <!-- QRCode.js Library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-  <!-- Chart.js for Analytics -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- Canvas Confetti for Interactive Scan Simulation -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #0f172a;
-      color: #f8fafc;
-    }
-    
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #1e293b;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
-
-    /* Glassmorphism effects for Acrylic Preview */
-    .glass-acrylic {
-      background: rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 255, 255, 0.1);
-    }
-
-    .glass-acrylic-black {
-      background: linear-gradient(145deg, #18181b, #09090b);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
-    }
-
-    .glass-acrylic-gold {
-      background: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
-      color: #111;
-      box-shadow: 0 20px 40px rgba(179, 135, 40, 0.3);
-    }
-
-    /* Phone Tap Simulation Animation */
-    @keyframes phoneTap {
-      0% { transform: translateY(120px) scale(0.8) rotate(-10deg); opacity: 0; }
-      50% { transform: translateY(-10px) scale(1.02) rotate(0deg); opacity: 1; }
-      70% { transform: translateY(0px) scale(1); opacity: 1; }
-      100% { transform: translateY(0px) scale(1); opacity: 1; }
-    }
-    .animate-phone-tap {
-      animation: phoneTap 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    }
-
-    /* Pulse Glow for NFC Symbol */
-    @keyframes nfcPulse {
-      0% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.6); }
-      70% { box-shadow: 0 0 0 15px rgba(14, 165, 233, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
-    }
-    .nfc-pulse {
-      animation: nfcPulse 2s infinite;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Painel - Placas Inteligentes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-sky-500 selection:text-white">
-  <div id="root"></div>
+<body class="bg-gray-100 p-8 font-sans">
+    <div class="max-w-5xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-800 mb-8">Gestor Dinâmico de Placas NFC</h1>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    // --- INITIAL MOCK DATA FOR DEMO ---
-    const INITIAL_PLATES = [
-      {
-        id: 'placa_1',
-        clientName: 'Padaria & Confeitaria Silva',
-        slug: 'padaria-silva',
-        category: 'google',
-        targetUrl: 'https://g.page/r/Cb123456789/review',
-        active: true,
-        scans: 342,
-        location: 'Balcão Caixa 01',
-        createdAt: '2025-01-15',
-        accentColor: '#4285F4',
-        heading: 'Nos avalie no Google',
-        subtitle: 'Aproxime o celular ou escaneie o QR Code para deixar 5 estrelas!'
-      },
-      {
-        id: 'placa_2',
-        clientName: 'Studio Bella Hair & Beauty',
-        slug: 'studio-bella',
-        category: 'instagram',
-        targetUrl: 'https://instagram.com/studiobellahair',
-        active: true,
-        scans: 218,
-        location: 'Recepção Principal',
-        createdAt: '2025-01-20',
-        accentColor: '#E1306C',
-        heading: 'Siga no Instagram',
-        subtitle: 'Fique por dentro das novidades, fotos e transformações!'
-      },
-      {
-        id: 'placa_3',
-        clientName: 'Burger Kraft Hamburgueria',
-        slug: 'burger-kraft-menu',
-        category: 'menu',
-        targetUrl: 'https://menu.burgerkraft.com.br',
-        active: true,
-        scans: 890,
-        location: 'Mesa Balcão Central',
-        createdAt: '2025-02-01',
-        accentColor: '#F59E0B',
-        heading: 'Cardápio Digital',
-        subtitle: 'Confira os lanches, bebidas e faça seu pedido online!'
-      },
-      {
-        id: 'placa_4',
-        clientName: 'Café Gourmet Central',
-        slug: 'cafe-central-wifi',
-        category: 'wifi',
-        targetUrl: 'https://wifi.cafecentral.com.br/connect',
-        active: true,
-        scans: 154,
-        location: 'Salão de Convivência',
-        createdAt: '2025-02-05',
-        accentColor: '#10B981',
-        heading: 'Wi-Fi Grátis para Clientes',
-        subtitle: 'Aproxime para conectar instantaneamente à nossa rede sem fio.'
-      },
-      {
-        id: 'placa_5',
-        clientName: 'Barbearia Vintage Club',
-        slug: 'barbearia-vintage',
-        category: 'whatsapp',
-        targetUrl: 'https://wa.me/5511999998888?text=Ola!%20Gostaria%20de%20agendar%20um%20horario',
-        active: false,
-        scans: 88,
-        location: 'Cadeira de Atendimento',
-        createdAt: '2025-02-12',
-        accentColor: '#25D366',
-        heading: 'Agende pelo WhatsApp',
-        subtitle: 'Fale direto com nossos barbeiros para reservar seu horário.'
-      }
-    ];
-
-    const INITIAL_LOGS = [
-      { id: 'l1', plateId: 'placa_1', plateName: 'Padaria & Confeitaria Silva', type: 'NFC', timestamp: 'Hoje às 14:32' },
-      { id: 'l2', plateId: 'placa_3', plateName: 'Burger Kraft Hamburgueria', type: 'QR Code', timestamp: 'Hoje às 14:15' },
-      { id: 'l3', plateId: 'placa_2', plateName: 'Studio Bella Hair & Beauty', type: 'NFC', timestamp: 'Hoje às 13:48' },
-      { id: 'l4', plateId: 'placa_3', plateName: 'Burger Kraft Hamburgueria', type: 'NFC', timestamp: 'Hoje às 12:20' },
-      { id: 'l5', plateId: 'placa_4', plateName: 'Café Gourmet Central', type: 'QR Code', timestamp: 'Ontem às 18:05' }
-    ];
-
-    // SVG Icons Map
-    const CategoryIcons = {
-      google: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-        </svg>
-      ),
-      instagram: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-        </svg>
-      ),
-      whatsapp: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="currentColor">
-          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.205 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-        </svg>
-      ),
-      wifi: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-          <line x1="12" y1="20" x2="12.01" y2="20"></line>
-        </svg>
-      ),
-      menu: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-          <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
-          <line x1="6" y1="1" x2="6" y2="4"></line>
-          <line x1="10" y1="1" x2="10" y2="4"></line>
-          <line x1="14" y1="1" x2="14" y2="4"></line>
-        </svg>
-      ),
-      custom: (cls="w-5 h-5") => (
-        <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="8" x2="12" y2="12"></line>
-          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-      )
-    };
-
-    const CategoryBadge = ({ category }) => {
-      const config = {
-        google: { label: 'Google Avaliações', bg: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-        instagram: { label: 'Instagram', bg: 'bg-pink-500/10 text-pink-400 border-pink-500/20' },
-        whatsapp: { label: 'WhatsApp', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-        wifi: { label: 'Wi-Fi Grátis', bg: 'bg-teal-500/10 text-teal-400 border-teal-500/20' },
-        menu: { label: 'Cardápio Digital', bg: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-        custom: { label: 'Link Personalizado', bg: 'bg-purple-500/10 text-purple-400 border-purple-500/20' }
-      };
-      const item = config[category] || config.custom;
-
-      return (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${item.bg}`}>
-          {CategoryIcons[category] ? CategoryIcons[category]('w-3.5 h-3.5') : null}
-          {item.label}
-        </span>
-      );
-    };
-
-    // Helper for Toast Notifications
-    function Toast({ toast, onClose }) {
-      if (!toast) return null;
-      return (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border border-slate-700 text-white px-5 py-3.5 rounded-xl shadow-2xl animate-bounce">
-          <div className={`w-3 h-3 rounded-full ${toast.type === 'error' ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-          <p className="text-sm font-medium">{toast.message}</p>
-          <button onClick={onClose} className="ml-2 text-slate-400 hover:text-white">✕</button>
-        </div>
-      );
-    }
-
-    // --- MAIN APP COMPONENT ---
-    function App() {
-      // Base Domain for NFC Link Hub
-      const baseUrl = window.location.origin + '/r/';
-
-      // State Management
-      const [plates, setPlates] = useState(() => {
-        const saved = localStorage.getItem('placa_go_plates');
-        return saved ? JSON.parse(saved) : INITIAL_PLATES;
-      });
-
-      const [logs, setLogs] = useState(() => {
-        const saved = localStorage.getItem('placa_go_logs');
-        return saved ? JSON.parse(saved) : INITIAL_LOGS;
-      });
-
-      const [activeTab, setActiveTab] = useState('dashboard');
-      const [searchQuery, setSearchQuery] = useState('');
-      const [filterCategory, setFilterCategory] = useState('all');
-      const [toast, setToast] = useState(null);
-
-      // Modals State
-      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-      const [editingPlate, setEditingPlate] = useState(null);
-      const [qrModalPlate, setQrModalPlate] = useState(null);
-      
-      // Acrylic Studio State
-      const [studioPlate, setStudioPlate] = useState(plates[0] || null);
-      const [studioMaterial, setStudioMaterial] = useState('clear'); // clear, black, gold
-      const [studioShape, setStudioShape] = useState('l-stand'); // l-stand, wall, mini
-      const [studioHeading, setStudioHeading] = useState('Nos avalie no Google');
-      const [studioSubtitle, setStudioSubtitle] = useState('Aproxime seu celular ou escaneie o QR Code');
-
-      // Simulator State
-      const [simPlate, setSimPlate] = useState(plates[0] || null);
-      const [simState, setSimState] = useState('idle'); // idle, tapping, scanned
-      const [simRedirectResult, setSimRedirectResult] = useState(null);
-
-      // Synchronize with LocalStorage
-      useEffect(() => {
-        localStorage.setItem('placa_go_plates', JSON.stringify(plates));
-      }, [plates]);
-
-      useEffect(() => {
-        localStorage.setItem('placa_go_logs', JSON.stringify(logs));
-      }, [logs]);
-
-      const showToast = (message, type = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3500);
-      };
-
-      // CRUD Handlers
-      const handleSavePlate = (formData) => {
-        if (editingPlate) {
-          // Update
-          setPlates(prev => prev.map(p => p.id === editingPlate.id ? { ...p, ...formData } : p));
-          showToast('Placa atualizada com sucesso!');
-        } else {
-          // Create
-          const newPlate = {
-            id: 'placa_' + Date.now(),
-            scans: 0,
-            createdAt: new Date().toISOString().split('T')[0],
-            ...formData
-          };
-          setPlates(prev => [newPlate, ...prev]);
-          showToast('Nova placa inteligente cadastrada!');
-        }
-        setIsAddModalOpen(false);
-        setEditingPlate(null);
-      };
-
-      const handleDeletePlate = (id) => {
-        if (confirm('Tem certeza que deseja excluir esta placa inteligente?')) {
-          setPlates(prev => prev.filter(p => p.id !== id));
-          showToast('Placa removida do sistema.', 'info');
-        }
-      };
-
-      const handleToggleActive = (id) => {
-        setPlates(prev => prev.map(p => {
-          if (p.id === id) {
-            const nextState = !p.active;
-            showToast(`Placa ${nextState ? 'ativada' : 'desativada'}.`);
-            return { ...p, active: nextState };
-          }
-          return p;
-        }));
-      };
-
-      const copyToClipboard = (text, label = 'Link') => {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text);
-          showToast(`${label} copiado para a área de transferência!`);
-        } else {
-          const el = document.createElement('textarea');
-          el.value = text;
-          document.body.appendChild(el);
-          el.select();
-          document.execCommand('copy');
-          document.body.removeChild(el);
-          showToast(`${label} copiado!`);
-        }
-      };
-
-      // Dynamic Simulation Execution
-      const triggerSimulatedScan = (type = 'NFC') => {
-        if (!simPlate) return;
-
-        setSimState('tapping');
-        
-        setTimeout(() => {
-          if (!simPlate.active) {
-            setSimState('scanned');
-            setSimRedirectResult({
-              success: false,
-              message: 'Placa Inativa! O redirecionamento foi pausado pelo proprietário.'
-            });
-            showToast('Atenção: Esta placa está inativa no sistema.', 'error');
-            return;
-          }
-
-          // Compute Scan
-          setPlates(prev => prev.map(p => p.id === simPlate.id ? { ...p, scans: p.scans + 1 } : p));
-
-          // Log Scan
-          const newLog = {
-            id: 'l_' + Date.now(),
-            plateId: simPlate.id,
-            plateName: simPlate.clientName,
-            type: type,
-            timestamp: 'Agora'
-          };
-          setLogs(prev => [newLog, ...prev.slice(0, 19)]);
-
-          setSimState('scanned');
-          setSimRedirectResult({
-            success: true,
-            targetUrl: simPlate.targetUrl,
-            clientName: simPlate.clientName,
-            category: simPlate.category
-          });
-
-          // Confetti animation
-          try {
-            confetti({
-              particleCount: 60,
-              spread: 70,
-              origin: { y: 0.6 }
-            });
-          } catch(e) {}
-
-          showToast(`Toque ${type} detectado! Redirecionando para ${simPlate.clientName}...`);
-        }, 1200);
-      };
-
-      // Total Scans computation
-      const totalScans = plates.reduce((acc, p) => acc + p.scans, 0);
-      const activePlatesCount = plates.filter(p => p.active).length;
-      const topPlate = [...plates].sort((a,b) => b.scans - a.scans)[0];
-
-      return (
-        <div className="min-h-screen flex flex-col bg-slate-950">
-          
-          {/* TOP NAVBAR */}
-          <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-              
-              {/* Brand Logo */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8 border-t-4 border-blue-500">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">Adicionar Nova Placa</h2>
+            <form id="formPlaca" class="flex gap-4 items-end flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-600">Cliente / Estabelecimento</label>
+                    <input type="text" id="cliente" required class="w-full border border-gray-300 p-2 rounded mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none">
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-lg text-white tracking-tight">Placa<span className="text-sky-400">GO</span></span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-500/20 text-sky-400 border border-sky-500/30">NFC LINK HUB</span>
-                  </div>
-                  <p className="text-xs text-slate-400">Gerenciador & Redirecionador Dinâmico</p>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-600">URL de Destino (Google/Insta)</label>
+                    <input type="url" id="destino" required class="w-full border border-gray-300 p-2 rounded mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none">
                 </div>
-              </div>
-
-              {/* Navigation Tabs */}
-              <nav className="hidden md:flex items-center gap-1 bg-slate-950/60 p-1.5 rounded-xl border border-slate-800">
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'dashboard' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setActiveTab('plates')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'plates' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                  Minhas Placas ({plates.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab('studio')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'studio' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
-                  Estúdio Acrílico
-                </button>
-                <button
-                  onClick={() => setActiveTab('simulator')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'simulator' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                  Simulador NFC
-                </button>
-                <button
-                  onClick={() => setActiveTab('guide')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${activeTab === 'guide' ? 'bg-sky-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  Guia & Gravação
-                </button>
-              </nav>
-
-              {/* Action Button */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setEditingPlate(null); setIsAddModalOpen(true); }}
-                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-sky-500/25 flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-                  Nova Placa
-                </button>
-              </div>
-
-            </div>
-
-            {/* Mobile Nav subheader */}
-            <div className="md:hidden flex items-center justify-around bg-slate-900 border-t border-slate-800 py-2 px-2 overflow-x-auto text-xs">
-              <button onClick={() => setActiveTab('dashboard')} className={`px-2 py-1 rounded ${activeTab === 'dashboard' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}>Dashboard</button>
-              <button onClick={() => setActiveTab('plates')} className={`px-2 py-1 rounded ${activeTab === 'plates' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}>Placas</button>
-              <button onClick={() => setActiveTab('studio')} className={`px-2 py-1 rounded ${activeTab === 'studio' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}>Estúdio</button>
-              <button onClick={() => setActiveTab('simulator')} className={`px-2 py-1 rounded ${activeTab === 'simulator' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}>Simulador</button>
-              <button onClick={() => setActiveTab('guide')} className={`px-2 py-1 rounded ${activeTab === 'guide' ? 'text-sky-400 font-bold' : 'text-slate-400'}`}>Guia NFC</button>
-            </div>
-          </header>
-
-          {/* MAIN CONTENT CONTAINER */}
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            
-            {/* ----------------- TAB 1: DASHBOARD ----------------- */}
-            {activeTab === 'dashboard' && (
-              <div className="space-y-8 animate-fadeIn">
-                
-                {/* Header Welcome banner */}
-                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl">
-                  <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                      Painel de Controle de Placas Interativas
-                    </h1>
-                    <p className="text-slate-400 text-sm mt-1 max-w-2xl">
-                      Monitore acessos em tempo real, gerencie os links dinâmicos dos seus clientes e teste os redirecionamentos dos chips NTAG215.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setActiveTab('simulator')}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium text-xs px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all"
-                    >
-                      <svg className="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      Testar Simulador NFC
-                    </button>
-                  </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-sm font-medium text-gray-600">URL Curta (Ex: barbearia-top)</label>
+                    <input type="text" id="slug" required class="w-full border border-gray-300 p-2 rounded mt-1 focus:ring-2 focus:ring-blue-400 focus:outline-none">
                 </div>
-
-                {/* Metrics Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  
-                  {/* Card 1: Total Placas */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total de Placas</span>
-                      <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-baseline gap-3">
-                      <span className="text-3xl font-extrabold text-white">{plates.length}</span>
-                      <span className="text-xs font-medium text-emerald-400 flex items-center gap-1">
-                        ● {activePlatesCount} ativas
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">Placas instaladas nos comércios</p>
-                  </div>
-
-                  {/* Card 2: Total Scans */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Acessos Totais</span>
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-baseline gap-2">
-                      <span className="text-3xl font-extrabold text-white">{totalScans.toLocaleString()}</span>
-                      <span className="text-xs font-medium text-slate-400">toques / scans</span>
-                    </div>
-                    <p className="text-xs text-emerald-400 mt-2 font-medium">↑ +14.2% esta semana</p>
-                  </div>
-
-                  {/* Card 3: Top Performer */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Placa Destaque</span>
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <h4 className="text-base font-bold text-white truncate">{topPlate ? topPlate.clientName : 'Nenhuma'}</h4>
-                      <p className="text-xs text-amber-400 font-semibold mt-1">{topPlate ? topPlate.scans : 0} acessos acumulados</p>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">Maior engajamento</p>
-                  </div>
-
-                  {/* Card 4: System Status */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Servidor de Links</span>
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M12 5l7 7-7 7" /></svg>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-2">
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                      </span>
-                      <span className="text-base font-bold text-white">100% Operacional</span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">Redirecionamentos ultra-rápidos (&lt;50ms)</p>
-                  </div>
-
-                </div>
-
-                {/* Dashboard Main Visual Section: Chart & Recent Scans */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  
-                  {/* Category Distribution & Analytics */}
-                  <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col justify-between">
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Distribuição por Categoria</h3>
-                        <p className="text-xs text-slate-400">Tipos de placas interativas mais contratadas pelos clientes</p>
-                      </div>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">Ao vivo</span>
-                    </div>
-
-                    <div className="mt-6 space-y-4">
-                      {[
-                        { cat: 'google', label: 'Google Avaliações (5 Estrelas)', color: 'bg-blue-500' },
-                        { cat: 'instagram', label: 'Instagram (Perfil / Siga)', color: 'bg-pink-500' },
-                        { cat: 'menu', label: 'Cardápios Digitais (Restaurantes)', color: 'bg-amber-500' },
-                        { cat: 'wifi', label: 'Conexão Wi-Fi Fácil', color: 'bg-teal-500' },
-                        { cat: 'whatsapp', label: 'WhatsApp / Contato', color: 'bg-emerald-500' }
-                      ].map((item) => {
-                        const count = plates.filter(p => p.category === item.cat).length;
-                        const pct = plates.length ? Math.round((count / plates.length) * 100) : 0;
-                        return (
-                          <div key={item.cat} className="space-y-1.5">
-                            <div className="flex justify-between text-xs font-medium">
-                              <span className="text-slate-300 flex items-center gap-2">
-                                {CategoryIcons[item.cat]('w-4 h-4')}
-                                {item.label}
-                              </span>
-                              <span className="text-slate-400">{count} placas ({pct}%)</span>
-                            </div>
-                            <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                              <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }}></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                      <span>Dica comercial: Placas de <b>Google Avaliações</b> possuem a maior taxa de conversão em vendas!</span>
-                    </div>
-                  </div>
-
-                  {/* Realtime Scan Log Stream */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg flex flex-col">
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                      <h3 className="text-base font-bold text-white flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        Últimos Acessos
-                      </h3>
-                      <span className="text-[11px] text-slate-400">Ao vivo</span>
-                    </div>
-
-                    <div className="mt-4 flex-1 space-y-3 overflow-y-auto max-h-[320px] pr-1">
-                      {logs.map((log) => (
-                        <div key={log.id} className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl flex items-center justify-between hover:border-slate-700 transition-all">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${log.type === 'NFC' ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' : 'bg-purple-500/20 text-purple-400 border border-purple-500/30'}`}>
-                              {log.type === 'NFC' ? 'NFC' : 'QR'}
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-white truncate max-w-[150px]">{log.plateName}</p>
-                              <p className="text-[10px] text-slate-400">{log.type} Touch • {log.timestamp}</p>
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">OK 200</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-
-            {/* ----------------- TAB 2: MINHAS PLACAS (CRUD) ----------------- */}
-            {activeTab === 'plates' && (
-              <div className="space-y-6 animate-fadeIn">
-                
-                {/* Search & Filter Bar */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-                  
-                  {/* Search Input */}
-                  <div className="relative flex-1">
-                    <svg className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    <input
-                      type="text"
-                      placeholder="Buscar por nome do cliente, slug ou localização..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
-                    />
-                  </div>
-
-                  {/* Category Filter Pills */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                    {[
-                      { id: 'all', label: 'Todos' },
-                      { id: 'google', label: 'Google' },
-                      { id: 'instagram', label: 'Instagram' },
-                      { id: 'menu', label: 'Cardápio' },
-                      { id: 'wifi', label: 'Wi-Fi' },
-                      { id: 'whatsapp', label: 'WhatsApp' }
-                    ].map(f => (
-                      <button
-                        key={f.id}
-                        onClick={() => setFilterCategory(f.id)}
-                        className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${filterCategory === f.id ? 'bg-sky-600 text-white shadow' : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'}`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-
-                </div>
-
-                {/* Plates Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {plates
-                    .filter(p => {
-                      const matchQuery = p.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || p.slug.toLowerCase().includes(searchQuery.toLowerCase());
-                      const matchCat = filterCategory === 'all' || p.category === filterCategory;
-                      return matchQuery && matchCat;
-                    })
-                    .map((plate) => {
-                      const nfcUrl = `${baseUrl}${plate.slug}`;
-                      return (
-                        <div key={plate.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between hover:border-slate-700 transition-all group">
-                          <div>
-                            {/* Card Header */}
-                            <div className="flex items-start justify-between gap-3">
-                              <CategoryBadge category={plate.category} />
-                              
-                              {/* Status Toggle */}
-                              <button
-                                onClick={() => handleToggleActive(plate.id)}
-                                title={plate.active ? 'Clique para desativar' : 'Clique para ativar'}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${plate.active ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'}`}
-                              >
-                                {plate.active ? '● Ativo' : '○ Inativo'}
-                              </button>
-                            </div>
-
-                            {/* Client Info */}
-                            <div className="mt-4">
-                              <h3 className="text-lg font-bold text-white group-hover:text-sky-400 transition-colors">{plate.clientName}</h3>
-                              <p className="text-xs text-slate-400 flex items-center gap-1 mt-1">
-                                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                {plate.location || 'Sem localização cadastrada'}
-                              </p>
-                            </div>
-
-                            {/* Dynamic Slug Box */}
-                            <div className="mt-4 p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">URL do Chip NFC / QR Code:</span>
-                                <button
-                                  onClick={() => copyToClipboard(nfcUrl, 'Link NFC')}
-                                  className="text-[11px] text-sky-400 hover:underline font-medium flex items-center gap-1"
-                                >
-                                  Copiar Link
-                                </button>
-                              </div>
-                              <p className="text-xs font-mono text-slate-200 truncate font-semibold">{nfcUrl}</p>
-                              
-                              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-                                <span className="text-slate-400">Destino final:</span>
-                                <a href={plate.targetUrl} target="_blank" rel="noopener noreferrer" className="text-slate-300 hover:text-sky-400 truncate max-w-[160px]">
-                                  {plate.targetUrl}
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Card Footer Actions */}
-                          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                              <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                              <span className="font-bold text-white">{plate.scans}</span> acessos
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              {/* QR Code Trigger Button */}
-                              <button
-                                onClick={() => setQrModalPlate(plate)}
-                                title="Ver / Baixar QR Code"
-                                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                              </button>
-                              
-                              {/* Studio Preview Button */}
-                              <button
-                                onClick={() => { setStudioPlate(plate); setActiveTab('studio'); }}
-                                title="Ver no Estúdio Acrílico 3D"
-                                className="p-2 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-slate-800 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
-                              </button>
-
-                              {/* Edit Button */}
-                              <button
-                                onClick={() => { setEditingPlate(plate); setIsAddModalOpen(true); }}
-                                title="Editar configurações"
-                                className="p-2 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                              </button>
-
-                              {/* Delete Button */}
-                              <button
-                                onClick={() => handleDeletePlate(plate.id)}
-                                title="Excluir placa"
-                                className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-
-              </div>
-            )}
-
-            {/* ----------------- TAB 3: ESTÚDIO DA PLACA ACRÍLICA (MOCKUP 3D/2D) ----------------- */}
-            {activeTab === 'studio' && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Estúdio de Customização Visual de Placas</h2>
-                    <p className="text-xs text-slate-400 mt-1">Visualize exatamente como a placa de acrílico ficará antes de mandar para a impressão em vinil ou UV.</p>
-                  </div>
-
-                  {/* Selector of which plate to render */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs font-semibold text-slate-400">Selecionar Placa:</label>
-                    <select
-                      value={studioPlate ? studioPlate.id : ''}
-                      onChange={(e) => {
-                        const found = plates.find(p => p.id === e.target.value);
-                        setStudioPlate(found);
-                      }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
-                    >
-                      {plates.map(p => (
-                        <option key={p.id} value={p.id}>{p.clientName} ({p.slug})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  
-                  {/* Studio Controls (Left Panel) */}
-                  <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-800 pb-3">Opções de Design Físico</h3>
-
-                    {/* Acrílico Material Finish */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300">Material do Acrílico:</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { id: 'clear', label: 'Cristal Transparente', icon: '✨' },
-                          { id: 'black', label: 'Preto Black Piano', icon: '⬛' },
-                          { id: 'gold', label: 'Dourado Espelhado', icon: '👑' }
-                        ].map(m => (
-                          <button
-                            key={m.id}
-                            onClick={() => setStudioMaterial(m.id)}
-                            className={`p-3 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${studioMaterial === m.id ? 'bg-sky-500/20 border-sky-500 text-sky-400' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'}`}
-                          >
-                            <span>{m.icon}</span>
-                            <span>{m.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Heading Text */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300">Título Principal da Placa:</label>
-                      <input
-                        type="text"
-                        value={studioHeading}
-                        onChange={(e) => setStudioHeading(e.target.value)}
-                        placeholder="Ex: Nos avalie no Google"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    {/* Subtitle / Cta */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300">Subtítulo / Instrução:</label>
-                      <input
-                        type="text"
-                        value={studioSubtitle}
-                        onChange={(e) => setStudioSubtitle(e.target.value)}
-                        placeholder="Ex: Aproxime o celular ou escaneie o QR Code"
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    {/* Quick Suggestions presets */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-400">Modelos Rápidos de Texto:</label>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => { setStudioHeading('Nos avalie no Google'); setStudioSubtitle('Sua avaliação de 5 estrelas é muito importante!'); }} className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg">Google 5★</button>
-                        <button onClick={() => { setStudioHeading('Siga nosso Instagram'); setStudioSubtitle('Tire uma foto e marque nosso perfil!'); }} className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg">Instagram</button>
-                        <button onClick={() => { setStudioHeading('Cardápio Digital'); setStudioSubtitle('Aproxime para abrir o menu em seu celular'); }} className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg">Cardápio</button>
-                        <button onClick={() => { setStudioHeading('Wi-Fi para Clientes'); setStudioSubtitle('Conecte-se automaticamente sem senha'); }} className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg">Wi-Fi</button>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                      <span className="text-xs text-slate-400">Tamanho padrão: 12cm x 12cm</span>
-                      <button onClick={() => window.print()} className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-4 py-2 rounded-xl border border-slate-700">Imprimir Gabarito</button>
-                    </div>
-
-                  </div>
-
-                  {/* Live Render Acrylic Plate Canvas (Right Panel) */}
-                  <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[480px] relative overflow-hidden shadow-2xl">
-                    
-                    {/* Background Studio Lighting Glow */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/10 via-purple-500/5 to-transparent pointer-events-none"></div>
-
-                    {studioPlate ? (
-                      <div className="relative flex flex-col items-center">
-                        
-                        {/* PHYSICAL ACRYLIC PLATE CONTAINER */}
-                        <div className={`w-[290px] sm:w-[330px] h-[390px] rounded-3xl p-6 flex flex-col items-center justify-between relative transition-all duration-500 transform hover:scale-[1.02] shadow-2xl ${
-                          studioMaterial === 'clear' ? 'glass-acrylic text-white' :
-                          studioMaterial === 'black' ? 'glass-acrylic-black text-white' :
-                          'glass-acrylic-gold'
-                        }`}>
-                          
-                          {/* Glass Highlight Line */}
-                          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-white/40 to-transparent rounded-t-3xl"></div>
-
-                          {/* Top Brand & Category Icon Header */}
-                          <div className="flex flex-col items-center text-center space-y-2 mt-2">
-                            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-                              {CategoryIcons[studioPlate.category] ? CategoryIcons[studioPlate.category]('w-8 h-8') : CategoryIcons.custom('w-8 h-8')}
-                            </div>
-                            <h4 className="text-xl font-extrabold tracking-tight leading-tight">{studioHeading}</h4>
-                            <p className="text-[11px] opacity-80 max-w-[240px]">{studioSubtitle}</p>
-                          </div>
-
-                          {/* CENTER: NFC SENSOR ZONE & QR CODE */}
-                          <div className="my-3 flex flex-col items-center">
-                            
-                            {/* Visual QR Code Placeholder with NFC Symbol overlay */}
-                            <div className="w-36 h-36 bg-white p-3 rounded-2xl shadow-xl relative flex items-center justify-center border-2 border-slate-200">
-                              
-                              {/* QR CODE GENERATED DYNAMICALLY */}
-                              <div id="studio-qrcode" className="w-full h-full flex items-center justify-center">
-                                <QrCodeRenderer url={`${baseUrl}${studioPlate.slug}`} size={120} />
-                              </div>
-
-                              {/* NFC Pulse Chip Overlay Badge */}
-                              <div className="absolute -bottom-3 bg-sky-600 text-white font-bold text-[9px] px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 border border-white nfc-pulse">
-                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                APROXIME AQUI (NFC)
-                              </div>
-
-                            </div>
-
-                          </div>
-
-                          {/* Bottom Establishment Branding */}
-                          <div className="w-full pt-3 border-t border-white/15 flex flex-col items-center text-center">
-                            <span className="text-xs font-bold uppercase tracking-wider">{studioPlate.clientName}</span>
-                            <span className="text-[10px] opacity-60 font-mono mt-0.5">{baseUrl}{studioPlate.slug}</span>
-                          </div>
-
-                        </div>
-
-                        {/* ACRYLIC ACRYLIC STAND BASE (BASE DE BALCÃO EM L) */}
-                        <div className="w-[310px] sm:w-[350px] h-6 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 rounded-b-xl border-t border-slate-600 shadow-2xl flex items-center justify-center relative -mt-1">
-                          <span className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">Suporte de Balcão L-Stand</span>
-                        </div>
-
-                      </div>
-                    ) : (
-                      <p className="text-slate-500 text-xs">Selecione uma placa para renderizar o estúdio.</p>
-                    )}
-
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-
-            {/* ----------------- TAB 4: SIMULADOR DE LEITURA NFC / QR CODE ----------------- */}
-            {activeTab === 'simulator' && (
-              <div className="space-y-6 animate-fadeIn">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <svg className="w-6 h-6 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                      Simulador Interativo de Aproximação NFC
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-1">Simule o comportamento do cliente encostando um celular (iPhone ou Android) na placa física.</p>
-                  </div>
-
-                  {/* Select which plate to test */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs font-semibold text-slate-400">Placa em teste:</label>
-                    <select
-                      value={simPlate ? simPlate.id : ''}
-                      onChange={(e) => {
-                        const found = plates.find(p => p.id === e.target.value);
-                        setSimPlate(found);
-                        setSimState('idle');
-                        setSimRedirectResult(null);
-                      }}
-                      className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-semibold text-white focus:outline-none focus:border-sky-500"
-                    >
-                      {plates.map(p => (
-                        <option key={p.id} value={p.id}>{p.clientName} ({p.slug})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                  
-                  {/* Left Controls & Touch Triggers */}
-                  <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider border-b border-slate-800 pb-3">Ação do Cliente Final</h3>
-
-                    {simPlate && (
-                      <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{simPlate.clientName}</span>
-                          <CategoryBadge category={simPlate.category} />
-                        </div>
-                        <p className="text-xs text-slate-400 font-mono">URL NFC: {baseUrl}{simPlate.slug}</p>
-                        <p className="text-xs text-slate-400 font-mono">Destino: {simPlate.targetUrl}</p>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => triggerSimulatedScan('NFC')}
-                        disabled={simState === 'tapping'}
-                        className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-sm py-4 rounded-xl shadow-lg shadow-sky-500/25 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        Simular Aproximação NFC (Aproximar Celular)
-                      </button>
-
-                      <button
-                        onClick={() => triggerSimulatedScan('QR Code')}
-                        disabled={simState === 'tapping'}
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        <svg className="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                        Simular Escaneamento de QR Code
-                      </button>
-                    </div>
-
-                    <div className="p-4 bg-sky-500/10 border border-sky-500/20 rounded-xl text-xs text-sky-300 space-y-1">
-                      <p className="font-semibold">💡 Como funciona o fluxo real?</p>
-                      <p className="opacity-90">1. O cliente encosta o topo do iPhone ou verso do Android na tag NTAG215.</p>
-                      <p className="opacity-90">2. O celular lê a URL do seu servidor (`{baseUrl}{simPlate?.slug}`).</p>
-                      <p className="opacity-90">3. Seu servidor registra a estatística de acesso e redireciona instantaneamente para a URL final do cliente!</p>
-                    </div>
-
-                  </div>
-
-                  {/* Right Animated Smartphone Mockup */}
-                  <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-2xl p-8 flex items-center justify-center min-h-[500px] relative">
-                    
-                    {/* SMARTPHONE FRAME */}
-                    <div className={`w-[260px] h-[520px] bg-slate-900 border-4 border-slate-700 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-between p-4 transition-all duration-500 ${simState === 'tapping' ? 'animate-phone-tap border-sky-500' : ''}`}>
-                      
-                      {/* Speaker Notch */}
-                      <div className="w-24 h-4 bg-slate-950 rounded-b-xl mx-auto absolute top-0 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center">
-                        <div className="w-8 h-1 bg-slate-800 rounded-full"></div>
-                      </div>
-
-                      {/* Phone Screen Container */}
-                      <div className="w-full h-full bg-slate-950 rounded-[28px] overflow-hidden flex flex-col justify-between pt-8 pb-4 px-3 relative border border-slate-800">
-                        
-                        {/* Screen Header (Status bar) */}
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono px-2">
-                          <span>09:41</span>
-                          <div className="flex items-center gap-1">
-                            <span>5G</span>
-                            <div className="w-4 h-2 bg-slate-400 rounded-sm"></div>
-                          </div>
-                        </div>
-
-                        {/* SCREEN CONTENT DEPENDING ON SIMULATION STATE */}
-                        {simState === 'idle' && (
-                          <div className="flex-1 flex flex-col items-center justify-center text-center p-4 space-y-3">
-                            <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 animate-pulse">
-                              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            </div>
-                            <p className="text-xs font-semibold text-slate-400">Aguardando aproximação com a placa...</p>
-                            <span className="text-[10px] text-slate-600">Clique no botão ao lado para iniciar</span>
-                          </div>
-                        )}
-
-                        {simState === 'tapping' && (
-                          <div className="flex-1 flex flex-col items-center justify-center text-center p-4 space-y-3">
-                            <div className="w-16 h-16 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center border border-sky-500/40 nfc-pulse">
-                              <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                            </div>
-                            <p className="text-xs font-bold text-sky-400">Lendo Tag NFC...</p>
-                            <p className="text-[10px] text-slate-400 font-mono">13.56 MHz High Frequency</p>
-                          </div>
-                        )}
-
-                        {simState === 'scanned' && simRedirectResult && (
-                          <div className="flex-1 flex flex-col justify-between p-2 animate-fadeIn">
-                            
-                            {/* POPUP NOTIFICATION SIMULATION */}
-                            <div className="bg-slate-900/90 border border-slate-700 backdrop-blur-md rounded-2xl p-3 shadow-2xl text-left space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] font-bold text-sky-400 flex items-center gap-1">
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                  ETIQUETA NFC DETECTADA
-                                </span>
-                                <span className="text-[9px] text-slate-500">Agora</span>
-                              </div>
-                              <p className="text-xs font-bold text-white">{simRedirectResult.clientName}</p>
-                              <p className="text-[10px] font-mono text-sky-300 truncate">{baseUrl}{simPlate?.slug}</p>
-                            </div>
-
-                            {/* DESTINATION PREVIEW SCREEN */}
-                            <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-3 my-auto">
-                              {simRedirectResult.success ? (
-                                <>
-                                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
-                                    ✓
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-bold text-white">Redirecionamento Concluído</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">Métrica +1 registrada no banco de dados.</p>
-                                  </div>
-                                  <a
-                                    href={simRedirectResult.targetUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-block bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] px-4 py-2 rounded-xl transition-all shadow"
-                                  >
-                                    Abrir Link no Navegador ↗
-                                  </a>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-400 mx-auto flex items-center justify-center font-bold">
-                                    ✕
-                                  </div>
-                                  <p className="text-xs font-bold text-red-400">{simRedirectResult.message}</p>
-                                </>
-                              )}
-                            </div>
-
-                          </div>
-                        )}
-
-                        {/* Phone Home Bar */}
-                        <div className="w-20 h-1 bg-slate-700 rounded-full mx-auto"></div>
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-
-            {/* ----------------- TAB 5: GUIA DE GRAVAÇÃO NFC & BACKUP ----------------- */}
-            {activeTab === 'guide' && (
-              <div className="space-y-8 animate-fadeIn">
-                
-                {/* Tutorial Header */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                  <h2 className="text-xl font-bold text-white">Guia de Produção e Gravação das Tags NFC</h2>
-                  <p className="text-xs text-slate-400 mt-1">Passo a passo técnico para gravar os chips NTAG215 e proteger contra alterações de terceiros.</p>
-                </div>
-
-                {/* Steps Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 font-bold flex items-center justify-center text-sm border border-sky-500/30">1</div>
-                    <h3 className="text-base font-bold text-white">Copie a URL Dinâmica</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      No painel <b>Minhas Placas</b>, copie a URL intermediária gerada para o seu cliente (ex: <code className="text-sky-300">{baseUrl}padaria-silva</code>). Nunca grave o link direto final no chip!
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                    <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 font-bold flex items-center justify-center text-sm border border-purple-500/30">2</div>
-                    <h3 className="text-base font-bold text-white">Grave no App NFC Tools</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Abra o aplicativo gratuito <b>NFC Tools</b> (iOS/Android), vá em <b>Escrever &gt; Adicionar um registro &gt; URL/Link</b>, cole o link dinâmico e aproxime a tag NTAG215 do celular.
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-sm border border-emerald-500/30">3</div>
-                    <h3 className="text-base font-bold text-white">Bloqueie com Senha (Opcional)</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      No menu <b>Outros &gt; Bloquear Tag</b> do app, você pode definir uma senha de segurança para evitar que curiosos regravem ou apaguem a placa física do seu cliente.
-                    </p>
-                  </div>
-
-                </div>
-
-                {/* Technical Comparison Sheet */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-                  <h3 className="text-base font-bold text-white">Ficha Técnica dos Chips de Mercado</h3>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
-                        <tr>
-                          <th className="p-3">Modelo</th>
-                          <th className="p-3">Memória Útil</th>
-                          <th className="p-3">Custo-Benefício</th>
-                          <th className="p-3">Recomendação para Plaquinhas</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        <tr>
-                          <td className="p-3 font-bold text-white">NTAG213</td>
-                          <td className="p-3 font-mono">144 bytes</td>
-                          <td className="p-3 text-amber-400">Muito Barato</td>
-                          <td className="p-3">Aceitável apenas para links curtos simples. Pode faltar espaço em URLs longas.</td>
-                        </tr>
-                        <tr className="bg-sky-500/10">
-                          <td className="p-3 font-bold text-sky-400 flex items-center gap-1">NTAG215 ★</td>
-                          <td className="p-3 font-mono font-bold text-sky-400">504 bytes</td>
-                          <td className="p-3 text-emerald-400 font-bold">Ideal / Excelente</td>
-                          <td className="p-3 font-bold text-white">A OPÇÃO PERFEITA. Padrão de mercado com sobra de memória e 100% de compatibilidade.</td>
-                        </tr>
-                        <tr>
-                          <td className="p-3 font-bold text-white">NTAG216</td>
-                          <td className="p-3 font-mono">888 bytes</td>
-                          <td className="p-3 text-red-400">Caro</td>
-                          <td className="p-3">Exagero para placas web. Necessário apenas para salvar vCards de contatos completos offline.</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Data Backup & Export Section */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Backup e Exportação de Dados</h3>
-                    <p className="text-xs text-slate-400">Exporte todo o seu cadastro de placas e estatísticas em arquivo JSON para ter cópia de segurança.</p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => {
-                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(plates, null, 2));
-                        const downloadAnchor = document.createElement('a');
-                        downloadAnchor.setAttribute("href", dataStr);
-                        downloadAnchor.setAttribute("download", `placago_backup_${new Date().toISOString().split('T')[0]}.json`);
-                        document.body.appendChild(downloadAnchor);
-                        downloadAnchor.click();
-                        downloadAnchor.remove();
-                        showToast('Backup exportado com sucesso!');
-                      }}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      Exportar JSON
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (confirm('Deseja restaurar as placas para o modelo de demonstração inicial?')) {
-                          setPlates(INITIAL_PLATES);
-                          setLogs(INITIAL_LOGS);
-                          showToast('Dados restaurados para o padrão de demonstração.');
-                        }
-                      }}
-                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-semibold text-xs px-4 py-2.5 rounded-xl"
-                    >
-                      Restaurar Demo
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-          </main>
-
-          {/* FOOTER */}
-          <footer className="bg-slate-900 border-t border-slate-800 py-6 mt-12">
-            <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-              <p>PlacaGO © 2026 - Hub de Gerenciamento e Redirecionamento Dinâmico de Placas NFC NTAG215 & QR Code.</p>
-            </div>
-          </footer>
-
-          {/* ----------------- MODAL 1: ADICIONAR / EDITAR PLACA ----------------- */}
-          {isAddModalOpen && (
-            <PlateFormModal
-              plate={editingPlate}
-              onClose={() => { setIsAddModalOpen(false); setEditingPlate(null); }}
-              onSave={handleSavePlate}
-            />
-          )}
-
-          {/* ----------------- MODAL 2: QR CODE HIGH-RES DOWNLOAD ----------------- */}
-          {qrModalPlate && (
-            <QrCodeDownloadModal
-              plate={qrModalPlate}
-              baseUrl={baseUrl}
-              onClose={() => setQrModalPlate(null)}
-              onCopy={copyToClipboard}
-            />
-          )}
-
-          {/* TOAST NOTIFICATION */}
-          <Toast toast={toast} onClose={() => setToast(null)} />
-
-        </div>
-      );
-    }
-
-    // --- HELPER COMPONENT: QR CODE RENDERER ---
-    function QrCodeRenderer({ url, size = 160 }) {
-      const containerRef = useRef(null);
-
-      useEffect(() => {
-        if (!containerRef.current) return;
-        containerRef.current.innerHTML = '';
-        try {
-          new QRCode(containerRef.current, {
-            text: url,
-            width: size,
-            height: size,
-            colorDark: "#09090b",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-          });
-        } catch(e) {}
-      }, [url, size]);
-
-      return <div ref={containerRef} className="flex items-center justify-center"></div>;
-    }
-
-    // --- MODAL COMPONENT: ADD / EDIT PLATE ---
-    function PlateFormModal({ plate, onClose, onSave }) {
-      const [clientName, setClientName] = useState(plate ? plate.clientName : '');
-      const [slug, setSlug] = useState(plate ? plate.slug : '');
-      const [category, setCategory] = useState(plate ? plate.category : 'google');
-      const [targetUrl, setTargetUrl] = useState(plate ? plate.targetUrl : '');
-      const [location, setLocation] = useState(plate ? plate.location : '');
-      const [active, setActive] = useState(plate ? plate.active : true);
-
-      // Auto-generate slug from Client Name
-      const handleNameChange = (val) => {
-        setClientName(val);
-        if (!plate) {
-          const autoSlug = val.toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-          setSlug(autoSlug);
-        }
-      };
-
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!clientName || !slug || !targetUrl) return;
-        onSave({ clientName, slug, category, targetUrl, location, active });
-      };
-
-      return (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-fadeIn space-y-6">
-            
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h3 className="text-lg font-bold text-white">
-                {plate ? 'Editar Placa Inteligente' : 'Cadastrar Nova Placa Interativa'}
-              </h3>
-              <button onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Nome do Cliente / Estabelecimento *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Padaria & Confeitaria Silva"
-                  value={clientName}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Identificador Slug (Único) *</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      required
-                      placeholder="padaria-silva"
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Categoria da Placa</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-sky-500"
-                  >
-                    <option value="google">Google Avaliações</option>
-                    <option value="instagram">Instagram</option>
-                    <option value="menu">Cardápio Digital</option>
-                    <option value="wifi">Conexão Wi-Fi</option>
-                    <option value="whatsapp">WhatsApp / Agendamento</option>
-                    <option value="custom">Link Personalizado</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">URL de Destino Final *</label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://g.page/r/exemplo/review"
-                  value={targetUrl}
-                  onChange={(e) => setTargetUrl(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-sky-500 font-mono"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">Para onde o cliente final será enviado ao encostar o celular na placa física.</p>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Localização no Estabelecimento</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Balcão Principal - Caixa 01"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-sky-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="activeCheck"
-                  checked={active}
-                  onChange={(e) => setActive(e.target.checked)}
-                  className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-sky-500 focus:ring-0"
-                />
-                <label htmlFor="activeCheck" className="text-slate-300 font-semibold cursor-pointer">
-                  Placa Ativa (Redirecionamento Habilitado)
-                </label>
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl text-slate-400 hover:text-white font-medium"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="bg-sky-600 hover:bg-sky-500 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-sky-500/20"
-                >
-                  Salvar Placa
-                </button>
-              </div>
-
+                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition font-semibold">Salvar Link</button>
             </form>
-
-          </div>
         </div>
-      );
-    }
 
-    // --- MODAL COMPONENT: QR CODE HIGH-RES DOWNLOAD ---
-    function QrCodeDownloadModal({ plate, baseUrl, onClose, onCopy }) {
-      const fullNfcUrl = `${baseUrl}${plate.slug}`;
+        <div class="bg-white rounded-lg shadow-md overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="p-4 font-medium">Cliente</th>
+                        <th class="p-4 font-medium">Link do Chip (Rota)</th>
+                        <th class="p-4 font-medium">Destino Real</th>
+                        <th class="p-4 font-medium text-center">Leituras</th>
+                        <th class="p-4 font-medium text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaPlacas" class="divide-y divide-gray-200">
+                    <!-- Preenchido via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 
-      return (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl animate-fadeIn space-y-6 text-center">
+    <script>
+        async function carregarPlacas() {
+            const res = await fetch('/api/placas');
+            const placas = await res.json();
+            const tbody = document.getElementById('tabelaPlacas');
+            tbody.innerHTML = '';
             
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h3 className="text-base font-bold text-white text-left">
-                QR Code Dinâmico - {plate.clientName}
-              </h3>
-              <button onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
-            </div>
+            placas.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition";
+                const urlAcesso = window.location.origin + '/r/' + p.slug;
+                tr.innerHTML = `
+                    <td class="p-4 font-medium text-gray-800">${p.cliente}</td>
+                    <td class="p-4 font-mono text-sm text-blue-600">
+                        <a href="${urlAcesso}" target="_blank" class="hover:underline">/r/${p.slug}</a>
+                    </td>
+                    <td class="p-4 text-sm text-gray-500 truncate max-w-[250px]" title="${p.destino}">${p.destino}</td>
+                    <td class="p-4 text-center">
+                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full font-bold text-sm">${p.acessos}</span>
+                    </td>
+                    <td class="p-4 text-center">
+                        <button onclick="deletarPlaca('${p.slug}')" class="text-red-500 hover:text-red-700 font-semibold text-sm transition">Excluir</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
 
-            {/* Rendered QR Code Container */}
-            <div className="bg-white p-6 rounded-2xl inline-block shadow-xl border-4 border-slate-800">
-              <QrCodeRenderer url={fullNfcUrl} size={180} />
-            </div>
+        document.getElementById('formPlaca').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const slugLimpo = document.getElementById('slug').value.trim().toLowerCase().replace(/\s+/g, '-');
+            const payload = {
+                cliente: document.getElementById('cliente').value,
+                destino: document.getElementById('destino').value,
+                slug: slugLimpo
+            };
+            
+            const res = await fetch('/api/placas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            
+            if(res.ok) {
+                e.target.reset();
+                carregarPlacas();
+            } else {
+                const data = await res.json();
+                alert(data.erro || 'Erro ao processar.');
+            }
+        });
 
-            <div className="space-y-2 text-xs">
-              <p className="font-mono text-slate-300 bg-slate-950 p-2 rounded-xl border border-slate-800 truncate">
-                {fullNfcUrl}
-              </p>
-              <p className="text-slate-400 text-[11px]">
-                Imprima este QR Code na arte da placa física junto ao ícone NFC.
-              </p>
-            </div>
+        async function deletarPlaca(slug) {
+            if(confirm('Atenção: A placa física deixará de funcionar. Prosseguir?')) {
+                await fetch('/api/placas/' + slug, { method: 'DELETE' });
+                carregarPlacas();
+            }
+        }
 
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => onCopy(fullNfcUrl, 'URL da Placa')}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2.5 rounded-xl border border-slate-700"
-              >
-                Copiar Link
-              </button>
-              <button
-                onClick={() => {
-                  const img = document.querySelector('#studio-qrcode img') || document.querySelector('.bg-white img');
-                  if (img && img.src) {
-                    const link = document.createElement('a');
-                    link.href = img.src;
-                    link.download = `qrcode_${plate.slug}.png`;
-                    link.click();
-                  }
-                }}
-                className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs py-2.5 rounded-xl shadow-lg shadow-sky-500/20"
-              >
-                Baixar Imagem PNG
-              </button>
-            </div>
-
-          </div>
-        </div>
-      );
-    }
-
-    // Render React Root
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+        carregarPlacas();
+    </script>
 </body>
 </html>
+"""
+
+# ==========================================
+# 2. BANCO DE DADOS E BACK-END
+# ==========================================
+def get_db():
+    conn = sqlite3.connect('placas.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    conn.execute('''CREATE TABLE IF NOT EXISTS placas
+                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                     cliente TEXT NOT NULL,
+                     slug TEXT UNIQUE NOT NULL,
+                     destino TEXT NOT NULL,
+                     acessos INTEGER DEFAULT 0)''')
+    conn.commit()
+    conn.close()
+
+@app.route('/')
+def index():
+    # Renderiza o HTML diretamente da variável acima
+    return render_template_string(HTML_PAINEL)
+
+@app.route('/api/placas', methods=['GET', 'POST'])
+def api_placas():
+    conn = get_db()
+    if request.method == 'POST':
+        data = request.json
+        try:
+            conn.execute('INSERT INTO placas (cliente, slug, destino) VALUES (?, ?, ?)',
+                         (data['cliente'], data['slug'], data['destino']))
+            conn.commit()
+            return jsonify({'status': 'sucesso'})
+        except sqlite3.IntegrityError:
+            return jsonify({'erro': 'Este slug/URL já está em uso.'}), 400
+        finally:
+            conn.close()
+
+    cur = conn.execute('SELECT * FROM placas ORDER BY id DESC')
+    placas = [dict(row) for row in cur.fetchall()]
+    conn.close()
+    return jsonify(placas)
+
+@app.route('/api/placas/<slug>', methods=['DELETE'])
+def deletar_placa(slug):
+    conn = get_db()
+    conn.execute('DELETE FROM placas WHERE slug = ?', (slug,))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'deletado'})
+
+@app.route('/r/<slug>')
+def redirecionar(slug):
+    conn = get_db()
+    cur = conn.execute('SELECT destino FROM placas WHERE slug = ?', (slug,))
+    row = cur.fetchone()
+    
+    if row:
+        conn.execute('UPDATE placas SET acessos = acessos + 1 WHERE slug = ?', (slug,))
+        conn.commit()
+        conn.close()
+        return redirect(row['destino'])
+        
+    conn.close()
+    return "Placa não encontrada ou inativa.", 404
+
+if _name_ == '_main_':
+    init_db()
+    app.run(debug=True, host='0.0.0.0', port=5000)
