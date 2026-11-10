@@ -1,7 +1,6 @@
 import os
 import re
 import uuid
-from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import psycopg
@@ -53,6 +52,7 @@ def init_db():
 @app.before_request
 def ensure_schema():
     if request.endpoint == "health":
+        return None
         return None
     if not getattr(app, "_schema_checked", False):
         try:
