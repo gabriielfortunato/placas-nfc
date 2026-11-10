@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Local databases and transient files
+placas.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Test and tooling
+.pytest_cache/
+.coverage
+htmlcov/
