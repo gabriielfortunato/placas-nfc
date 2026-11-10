@@ -86,7 +86,10 @@ def valid_target(value):
     if not isinstance(value, str) or len(value) > 2048:
         return False
     parsed = urlparse(value.strip())
-    try:\n        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and parsed.port != 0 and not any(c.isspace() for c in value)\n    except ValueError:\n        return False
+    try:
+        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and parsed.port != 0 and not any(c.isspace() for c in value)
+    except ValueError:
+        return False
 
 
 def plate_json(row):
@@ -235,6 +238,8 @@ def create_plate():
         return json_error("Categoria inválida.")
     if not valid_target(target):
         return json_error("O destino deve ser uma URL completa iniciada por http:// ou https://.")
+    if "active" in data and not isinstance(data["active"], bool):
+        return json_error("O estado ativo deve ser verdadeiro ou falso.")
     plate_id = str(uuid.uuid4())
     try:
         with db() as conn:
@@ -270,10 +275,11 @@ def update_plate(slug):
             value = str(value).strip()
             if not valid_target(value):
                 return json_error("O destino deve ser uma URL http:// ou https:// válida.")
-        elif key == "category" and value not in CATEGORIES:
+        elif key == "category" and (not isinstance(value, str) or value not in CATEGORIES):
             return json_error("Categoria inválida.")
         elif key == "active":
-            value = bool(value)
+            if not isinstance(value, bool):
+                return json_error("O estado ativo deve ser verdadeiro ou falso.")
         else:
             value = str(value).strip()
             if limit and len(value) > limit:
