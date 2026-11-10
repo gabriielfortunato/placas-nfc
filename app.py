@@ -10,7 +10,8 @@ from flask import Flask, jsonify, request, redirect, send_file, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__, static_folder="static")
-SECRET_CONFIGURED = bool(os.environ.get("FLASK_SECRET_KEY"))\napp.secret_key = os.environ.get("FLASK_SECRET_KEY") or "development-insecure-only"
+SECRET_CONFIGURED = bool(os.environ.get("FLASK_SECRET_KEY"))
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "development-insecure-only"
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
