@@ -129,87 +129,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // --- INITIAL MOCK DATA FOR DEMO ---
-    const INITIAL_PLATES = [
-      {
-        id: 'placa_1',
-        clientName: 'Padaria & Confeitaria Silva',
-        slug: 'padaria-silva',
-        category: 'google',
-        targetUrl: 'https://g.page/r/Cb123456789/review',
-        active: true,
-        scans: 342,
-        location: 'Balcão Caixa 01',
-        createdAt: '2025-01-15',
-        accentColor: '#4285F4',
-        heading: 'Nos avalie no Google',
-        subtitle: 'Aproxime o celular ou escaneie o QR Code para deixar 5 estrelas!'
-      },
-      {
-        id: 'placa_2',
-        clientName: 'Studio Bella Hair & Beauty',
-        slug: 'studio-bella',
-        category: 'instagram',
-        targetUrl: 'https://instagram.com/studiobellahair',
-        active: true,
-        scans: 218,
-        location: 'Recepção Principal',
-        createdAt: '2025-01-20',
-        accentColor: '#E1306C',
-        heading: 'Siga no Instagram',
-        subtitle: 'Fique por dentro das novidades, fotos e transformações!'
-      },
-      {
-        id: 'placa_3',
-        clientName: 'Burger Kraft Hamburgueria',
-        slug: 'burger-kraft-menu',
-        category: 'menu',
-        targetUrl: 'https://menu.burgerkraft.com.br',
-        active: true,
-        scans: 890,
-        location: 'Mesa Balcão Central',
-        createdAt: '2025-02-01',
-        accentColor: '#F59E0B',
-        heading: 'Cardápio Digital',
-        subtitle: 'Confira os lanches, bebidas e faça seu pedido online!'
-      },
-      {
-        id: 'placa_4',
-        clientName: 'Café Gourmet Central',
-        slug: 'cafe-central-wifi',
-        category: 'wifi',
-        targetUrl: 'https://wifi.cafecentral.com.br/connect',
-        active: true,
-        scans: 154,
-        location: 'Salão de Convivência',
-        createdAt: '2025-02-05',
-        accentColor: '#10B981',
-        heading: 'Wi-Fi Grátis para Clientes',
-        subtitle: 'Aproxime para conectar instantaneamente à nossa rede sem fio.'
-      },
-      {
-        id: 'placa_5',
-        clientName: 'Barbearia Vintage Club',
-        slug: 'barbearia-vintage',
-        category: 'whatsapp',
-        targetUrl: 'https://wa.me/5511999998888?text=Ola!%20Gostaria%20de%20agendar%20um%20horario',
-        active: false,
-        scans: 88,
-        location: 'Cadeira de Atendimento',
-        createdAt: '2025-02-12',
-        accentColor: '#25D366',
-        heading: 'Agende pelo WhatsApp',
-        subtitle: 'Fale direto com nossos barbeiros para reservar seu horário.'
-      }
-    ];
-
-    const INITIAL_LOGS = [
-      { id: 'l1', plateId: 'placa_1', plateName: 'Padaria & Confeitaria Silva', type: 'NFC', timestamp: 'Hoje às 14:32' },
-      { id: 'l2', plateId: 'placa_3', plateName: 'Burger Kraft Hamburgueria', type: 'QR Code', timestamp: 'Hoje às 14:15' },
-      { id: 'l3', plateId: 'placa_2', plateName: 'Studio Bella Hair & Beauty', type: 'NFC', timestamp: 'Hoje às 13:48' },
-      { id: 'l4', plateId: 'placa_3', plateName: 'Burger Kraft Hamburgueria', type: 'NFC', timestamp: 'Hoje às 12:20' },
-      { id: 'l5', plateId: 'placa_4', plateName: 'Café Gourmet Central', type: 'QR Code', timestamp: 'Ontem às 18:05' }
-    ];
+    // Dados reais carregados do backend.
 
     // SVG Icons Map
     const CategoryIcons = {
@@ -295,163 +215,40 @@
       // Base Domain for NFC Link Hub
       const baseUrl = window.location.origin + '/r/';
 
-      // State Management
-      const [plates, setPlates] = useState(() => {
-        const saved = localStorage.getItem('placa_go_plates');
-        return saved ? JSON.parse(saved) : INITIAL_PLATES;
-      });
-
-      const [logs, setLogs] = useState(() => {
-        const saved = localStorage.getItem('placa_go_logs');
-        return saved ? JSON.parse(saved) : INITIAL_LOGS;
-      });
-
-      const [activeTab, setActiveTab] = useState('dashboard');
-      const [searchQuery, setSearchQuery] = useState('');
-      const [filterCategory, setFilterCategory] = useState('all');
-      const [toast, setToast] = useState(null);
-
-      // Modals State
-      const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-      const [editingPlate, setEditingPlate] = useState(null);
-      const [qrModalPlate, setQrModalPlate] = useState(null);
-      
-      // Acrylic Studio State
-      const [studioPlate, setStudioPlate] = useState(plates[0] || null);
-      const [studioMaterial, setStudioMaterial] = useState('clear'); // clear, black, gold
-      const [studioShape, setStudioShape] = useState('l-stand'); // l-stand, wall, mini
-      const [studioHeading, setStudioHeading] = useState('Nos avalie no Google');
-      const [studioSubtitle, setStudioSubtitle] = useState('Aproxime seu celular ou escaneie o QR Code');
-
-      // Simulator State
-      const [simPlate, setSimPlate] = useState(plates[0] || null);
-      const [simState, setSimState] = useState('idle'); // idle, tapping, scanned
-      const [simRedirectResult, setSimRedirectResult] = useState(null);
-
-      // Synchronize with LocalStorage
-      useEffect(() => {
-        localStorage.setItem('placa_go_plates', JSON.stringify(plates));
-      }, [plates]);
-
-      useEffect(() => {
-        localStorage.setItem('placa_go_logs', JSON.stringify(logs));
-      }, [logs]);
-
-      const showToast = (message, type = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 3500);
-      };
-
-      // CRUD Handlers
-      const handleSavePlate = (formData) => {
-        if (editingPlate) {
-          // Update
-          setPlates(prev => prev.map(p => p.id === editingPlate.id ? { ...p, ...formData } : p));
-          showToast('Placa atualizada com sucesso!');
-        } else {
-          // Create
-          const newPlate = {
-            id: 'placa_' + Date.now(),
-            scans: 0,
-            createdAt: new Date().toISOString().split('T')[0],
-            ...formData
-          };
-          setPlates(prev => [newPlate, ...prev]);
-          showToast('Nova placa inteligente cadastrada!');
-        }
-        setIsAddModalOpen(false);
-        setEditingPlate(null);
-      };
-
-      const handleDeletePlate = (id) => {
-        if (confirm('Tem certeza que deseja excluir esta placa inteligente?')) {
-          setPlates(prev => prev.filter(p => p.id !== id));
-          showToast('Placa removida do sistema.', 'info');
-        }
-      };
-
-      const handleToggleActive = (id) => {
-        setPlates(prev => prev.map(p => {
-          if (p.id === id) {
-            const nextState = !p.active;
-            showToast(`Placa ${nextState ? 'ativada' : 'desativada'}.`);
-            return { ...p, active: nextState };
-          }
-          return p;
-        }));
-      };
-
-      const copyToClipboard = (text, label = 'Link') => {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text);
-          showToast(`${label} copiado para a área de transferência!`);
-        } else {
-          const el = document.createElement('textarea');
-          el.value = text;
-          document.body.appendChild(el);
-          el.select();
-          document.execCommand('copy');
-          document.body.removeChild(el);
-          showToast(`${label} copiado!`);
-        }
-      };
-
-      // Dynamic Simulation Execution
-      const triggerSimulatedScan = (type = 'NFC') => {
-        if (!simPlate) return;
-
-        setSimState('tapping');
-        
-        setTimeout(() => {
-          if (!simPlate.active) {
-            setSimState('scanned');
-            setSimRedirectResult({
-              success: false,
-              message: 'Placa Inativa! O redirecionamento foi pausado pelo proprietário.'
-            });
-            showToast('Atenção: Esta placa está inativa no sistema.', 'error');
-            return;
-          }
-
-          // Compute Scan
-          setPlates(prev => prev.map(p => p.id === simPlate.id ? { ...p, scans: p.scans + 1 } : p));
-
-          // Log Scan
-          const newLog = {
-            id: 'l_' + Date.now(),
-            plateId: simPlate.id,
-            plateName: simPlate.clientName,
-            type: type,
-            timestamp: 'Agora'
-          };
-          setLogs(prev => [newLog, ...prev.slice(0, 19)]);
-
-          setSimState('scanned');
-          setSimRedirectResult({
-            success: true,
-            targetUrl: simPlate.targetUrl,
-            clientName: simPlate.clientName,
-            category: simPlate.category
-          });
-
-          // Confetti animation
-          try {
-            confetti({
-              particleCount: 60,
-              spread: 70,
-              origin: { y: 0.6 }
-            });
-          } catch(e) {}
-
-          showToast(`Toque ${type} detectado! Redirecionando para ${simPlate.clientName}...`);
-        }, 1200);
-      };
-
+      const [plates,setPlates]=useState([]); const [logs,setLogs]=useState([]);
+      const [activeTab,setActiveTab]=useState('dashboard'); const [searchQuery,setSearchQuery]=useState(''); const [filterCategory,setFilterCategory]=useState('all'); const [toast,setToast]=useState(null);
+      const [isAddModalOpen,setIsAddModalOpen]=useState(false); const [editingPlate,setEditingPlate]=useState(null); const [qrModalPlate,setQrModalPlate]=useState(null);
+      const [studioPlate,setStudioPlate]=useState(null); const [studioMaterial,setStudioMaterial]=useState('clear'); const [studioShape,setStudioShape]=useState('l-stand'); const [studioHeading,setStudioHeading]=useState('Nos avalie no Google'); const [studioSubtitle,setStudioSubtitle]=useState('Aproxime seu celular ou escaneie o QR Code');
+      const [simPlate,setSimPlate]=useState(null); const [simState,setSimState]=useState('idle'); const [simRedirectResult,setSimRedirectResult]=useState(null);
+      const [auth,setAuth]=useState({loading:true,authenticated:false,setupRequired:false}); const [authPassword,setAuthPassword]=useState(''); const [authSetupToken,setAuthSetupToken]=useState(''); const [authError,setAuthError]=useState(''); const [authBusy,setAuthBusy]=useState(false); const [csrfToken,setCsrfToken]=useState('');
+      const api=async(url,options={})=>{const headers={'Content-Type':'application/json',...(options.headers||{})};if(csrfToken&&!['GET','HEAD'].includes((options.method||'GET').toUpperCase()))headers['X-CSRF-Token']=csrfToken;const response=await fetch(url,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.erro||'Não foi possível concluir a operação.');return data;};
+      const loadData=async()=>{const result=await Promise.all([api('/api/placas'),api('/api/logs')]);setPlates(result[0]);setLogs(result[1]);setStudioPlate(cur=>cur?(result[0].find(x=>x.id===cur.id)||result[0][0]||null):(result[0][0]||null));setSimPlate(cur=>cur?(result[0].find(x=>x.id===cur.id)||result[0][0]||null):(result[0][0]||null));};
+      useEffect(()=>{(async()=>{try{const status=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());setAuth({loading:false,authenticated:!!status.authenticated,setupRequired:!!status.setup_required});setCsrfToken(status.csrf_token||'');if(status.authenticated)await loadData();}catch(e){setAuth({loading:false,authenticated:false,setupRequired:false});setAuthError('Não foi possível conectar ao servidor.');}})();},[]);
+      const handleAuth=async(e)=>{e.preventDefault();setAuthBusy(true);setAuthError('');try{const path=auth.setupRequired?'/api/auth/setup':'/api/auth/login';const body=auth.setupRequired?{setup_token:authSetupToken,password:authPassword}:{password:authPassword};const response=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.erro||'Falha na autenticação.');const status=await fetch('/api/auth/status',{credentials:'same-origin'}).then(r=>r.json());setCsrfToken(status.csrf_token||'');setAuth({loading:false,authenticated:!!status.authenticated,setupRequired:!!status.setup_required});setAuthPassword('');setAuthSetupToken('');if(status.authenticated)await loadData();}catch(err){setAuthError(err.message);}finally{setAuthBusy(false);}};
+      const handleLogout=async()=>{try{await api('/api/auth/logout',{method:'POST',body:'{}'});}catch(e){}setAuth({loading:false,authenticated:false,setupRequired:false});setPlates([]);setLogs([]);};
+      const showToast=(message,type='success')=>{setToast({message,type});setTimeout(()=>setToast(null),3500);};
+      const handleSavePlate=async(formData)=>{try{const payload={clientName:formData.clientName,category:formData.category,targetUrl:formData.targetUrl,location:formData.location,active:formData.active,accentColor:formData.accentColor||'#4285F4',heading:formData.heading||'',subtitle:formData.subtitle||''};if(editingPlate)await api('/api/placas/'+encodeURIComponent(editingPlate.slug),{method:'PUT',body:JSON.stringify(payload)});else await api('/api/placas',{method:'POST',body:JSON.stringify({...payload,slug:formData.slug})});await loadData();showToast(editingPlate?'Placa atualizada; link fixo preservado.':'Placa cadastrada.');setIsAddModalOpen(false);setEditingPlate(null);}catch(e){showToast(e.message,'error');}};
+      const handleDeletePlate=async(id)=>{const plate=plates.find(p=>p.id===id);if(!plate||!confirm('Arquivar esta placa? O QR Code continuará reservado e não poderá ser reutilizado.'))return;try{await api('/api/placas/'+encodeURIComponent(plate.slug),{method:'PATCH',body:JSON.stringify({active:false})});await loadData();showToast('Placa arquivada; identificador preservado.');}catch(e){showToast(e.message,'error');}};
+      const handleToggleActive=async(id)=>{const plate=plates.find(p=>p.id===id);if(!plate)return;try{await api('/api/placas/'+encodeURIComponent(plate.slug),{method:'PATCH',body:JSON.stringify({active:!plate.active})});await loadData();showToast(plate.active?'Placa desativada.':'Placa ativada.');}catch(e){showToast(e.message,'error');}};
+      const copyToClipboard=(text,label='Link')=>{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text);showToast(label+' copiado!');}else{const el=document.createElement('textarea');el.value=text;document.body.appendChild(el);el.select();document.execCommand('copy');el.remove();showToast(label+' copiado!');}};
+      const triggerSimulatedScan=(type='NFC')=>{if(!simPlate)return;setSimState('tapping');setTimeout(()=>{if(!simPlate.active){setSimState('scanned');setSimRedirectResult({success:false,message:'Placa inativa: redirecionamento pausado.'});showToast('Placa inativa.','error');return;}setSimState('scanned');setSimRedirectResult({success:true,targetUrl:simPlate.targetUrl,clientName:simPlate.clientName,category:simPlate.category});try{confetti({particleCount:60,spread:70,origin:{y:0.6}});}catch(e){}showToast('Simulação visual: nenhuma leitura real foi contabilizada.');},1200);};
       // Total Scans computation
       const totalScans = plates.reduce((acc, p) => acc + p.scans, 0);
       const activePlatesCount = plates.filter(p => p.active).length;
       const topPlate = [...plates].sort((a,b) => b.scans - a.scans)[0];
 
+      if(auth.loading) return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-200">Carregando PlacaGO...</div>;
+      if(!auth.authenticated) return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+          <form onSubmit={handleAuth} className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-5">
+            <div className="text-center"><h1 className="text-3xl font-extrabold text-white">Placa<span className="text-sky-400">GO</span></h1><p className="text-sm text-slate-400 mt-2">{auth.setupRequired?'Configuração inicial do administrador':'Acesso administrativo'}</p></div>
+            {auth.setupRequired&&<div><label className="block text-xs text-slate-300 mb-2">Código de configuração</label><input required type="password" value={authSetupToken} onChange={e=>setAuthSetupToken(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"/></div>}
+            <div><label className="block text-xs text-slate-300 mb-2">{auth.setupRequired?'Crie uma senha de administrador':'Senha de administrador'}</label><input required minLength="12" type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white" autoComplete={auth.setupRequired?'new-password':'current-password'}/>{auth.setupRequired&&<p className="text-[11px] text-slate-500 mt-2">Use uma senha exclusiva com pelo menos 12 caracteres.</p>}</div>
+            {authError&&<p className="text-sm text-red-400">{authError}</p>}
+            <button disabled={authBusy} className="w-full bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-bold rounded-xl p-3">{authBusy?'Aguarde...':auth.setupRequired?'Criar administrador':'Entrar'}</button>
+          </form>
+        </div>
+      );
       return (
         <div className="min-h-screen flex flex-col bg-slate-950">
           
@@ -523,6 +320,7 @@
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
                   Nova Placa
                 </button>
+                <button onClick={handleLogout} className="text-xs text-slate-400 hover:text-white px-2">Sair</button>
               </div>
 
             </div>
@@ -1323,15 +1121,11 @@
 
                     <button
                       onClick={() => {
-                        if (confirm('Deseja restaurar as placas para o modelo de demonstração inicial?')) {
-                          setPlates(INITIAL_PLATES);
-                          setLogs(INITIAL_LOGS);
-                          showToast('Dados restaurados para o padrão de demonstração.');
-                        }
+                        if (confirm('Atualizar os dados do banco de dados?')) { loadData().then(()=>showToast('Dados atualizados.')).catch(e=>showToast(e.message,'error')); }
                       }}
                       className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-semibold text-xs px-4 py-2.5 rounded-xl"
                     >
-                      Restaurar Demo
+                      Atualizar dados
                     </button>
                   </div>
                 </div>
@@ -1430,7 +1224,7 @@
             
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <h3 className="text-lg font-bold text-white">
-                {plate ? 'Editar Placa Inteligente' : 'Cadastrar Nova Placa Interativa'}
+                {plate ? 'Editar Placa Inteligente (link fixo)' : 'Cadastrar Nova Placa Interativa'}
               </h3>
               <button onClick={onClose} className="text-slate-400 hover:text-white text-lg">✕</button>
             </div>
@@ -1459,6 +1253,7 @@
                       placeholder="padaria-silva"
                       value={slug}
                       onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                      disabled={!!plate}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono focus:outline-none focus:border-sky-500"
                     />
                   </div>
