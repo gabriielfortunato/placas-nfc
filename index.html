@@ -68,22 +68,27 @@
                 const card = document.createElement('div');
                 card.className = 'border rounded-lg p-4 bg-slate-50 flex flex-col justify-between space-y-3';
 
+                // URL fixa que será gravada no QR Code e Tag NFC
+                const urlFixaRedirecionamento = `https://${window.location.host}/r/${placa.id}`;
+
                 card.innerHTML = `
                     <div>
                         <span class="font-bold text-slate-900">${placa.id}</span>
-                        <p class="text-xs text-gray-500 truncate mt-1">Destino: <a href="${placa.url || '#'}" target="_blank" class="text-blue-600 underline">${placa.url || 'Não configurado'}</a></p>
+                        <p class="text-xs text-gray-500 truncate mt-1">Destino Atual: <a href="${placa.url || '#'}" target="_blank" class="text-blue-600 underline">${placa.url || 'Não configurado'}</a></p>
+                        <p class="text-xs text-gray-400 truncate mt-0.5">Link Fixo (QR/NFC): <span class="font-mono text-gray-600">${urlFixaRedirecionamento}</span></p>
                     </div>
                     <div id="qr-${placa.id}" class="flex justify-center p-2 bg-white rounded border"></div>
                     <div class="flex gap-2">
-                        <button onclick="editarPlaca('${placa.id}')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded transition">Configurar</button>
+                        <button onclick="editarPlaca('${placa.id}')" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-xs py-2 rounded transition">Configurar Destino</button>
                         <button onclick="excluirPlaca('${placa.id}')" class="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-2 rounded transition">Excluir</button>
                     </div>
                 `;
 
                 container.appendChild(card);
 
+                // O QR Code agora é SEMPRE gerado com o link fixo do seu servidor
                 new QRCode(document.getElementById(`qr-${placa.id}`), {
-                    text: placa.url || `https://${window.location.host}/r/${placa.id}`,
+                    text: urlFixaRedirecionamento,
                     width: 120,
                     height: 120
                 });
@@ -112,7 +117,7 @@
 
         function editarPlaca(id) {
             const placa = placas.find(p => p.id === id);
-            const novaUrl = prompt(`Digite a nova URL para a placa ${id}:`, placa.url);
+            const novaUrl = prompt(`Digite a nova URL de destino para a placa ${id}:`, placa.url);
             if (novaUrl !== null) {
                 placa.url = novaUrl;
                 salvarPlacas();
