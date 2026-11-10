@@ -86,7 +86,7 @@ def valid_target(value):
     if not isinstance(value, str) or len(value) > 2048:
         return False
     parsed = urlparse(value.strip())
-    return parsed.scheme in ("http", "https") and bool(parsed.netloc) and not any(c.isspace() for c in value)
+    try:\n        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and parsed.port != 0 and not any(c.isspace() for c in value)\n    except ValueError:\n        return False
 
 
 def plate_json(row):
@@ -296,7 +296,7 @@ def update_plate(slug):
 def manage_plate(slug):
     if request.method == "DELETE":
         # Compatibility safety: DELETE only deactivates. The slug is never deleted.
-        return update_plate(slug) if False else deactivate_plate(slug)
+        return deactivate_plate(slug)
     return update_plate(slug)
 
 
