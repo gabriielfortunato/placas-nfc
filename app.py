@@ -113,6 +113,8 @@ def health():
 
 @app.get("/api/auth/status")
 def auth_status():
+    if not SECRET_CONFIGURED:
+        return json_error("Configuração incompleta: defina FLASK_SECRET_KEY no Render.", 503)
     try:
         with db() as conn:
             count = conn.execute("SELECT count(*) AS n FROM public.admin_users").fetchone()["n"]
@@ -130,6 +132,8 @@ def auth_status():
 
 @app.post("/api/auth/setup")
 def auth_setup():
+    if not SECRET_CONFIGURED:
+        return json_error("Configuração incompleta: defina FLASK_SECRET_KEY no Render.", 503)
     data = request.get_json(silent=True) or {}
     token = os.environ.get("ADMIN_SETUP_TOKEN", "")
     password = data.get("password", "")
@@ -158,6 +162,8 @@ def auth_setup():
 
 @app.post("/api/auth/login")
 def auth_login():
+    if not SECRET_CONFIGURED:
+        return json_error("Configuração incompleta: defina FLASK_SECRET_KEY no Render.", 503)
     data = request.get_json(silent=True) or {}
     password = data.get("password", "")
     try:
@@ -184,6 +190,7 @@ def auth_logout():
 
 @app.get("/")
 def index():
+    return send_file(os.path.join(app.root_path, "index.html"))
     return render_template("index.html")
 
 
