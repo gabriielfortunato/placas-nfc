@@ -268,17 +268,44 @@ HTML_PAINEL = """
                         </form>
                     </section>
 
-                    {/* Lista de Placas */}
-                    <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {placas.map(p => (
-                            <PlacaCard
-                                key={p.id}
-                                placa={p}
-                                onEditar={handleEditarDestino}
-                                onDeletar={handleDeletar}
-                            />
-                        ))}
-                    </section>
+                    {/* Lista de Placas agrupada por categoria e em ordem numerica */}
+                    {[
+                        { key: 'instagram', title: 'Instagram', prefix: 'insta-' },
+                        { key: 'whatsapp', title: 'WhatsApp', prefix: 'whatsapp-' },
+                        { key: 'google', title: 'Google', prefix: 'google-' },
+                        { key: 'outros', title: 'Outras placas', prefix: '' }
+                    ].map(grupo => {
+                        const itens = placas
+                            .filter(p => grupo.key === 'outros'
+                                ? !['instagram', 'whatsapp', 'google'].includes(String(p.categoria || '').toLowerCase())
+                                : String(p.categoria || '').toLowerCase() === grupo.key)
+                            .sort((a, b) => {
+                                const numeroA = Number((a.slug.match(/(\\d+)$/) || [0, 0])[1]);
+                                const numeroB = Number((b.slug.match(/(\\d+)$/) || [0, 0])[1]);
+                                return numeroA - numeroB || a.slug.localeCompare(b.slug);
+                            });
+                        if (itens.length === 0) return null;
+                        return (
+                            <section key={grupo.key} className="space-y-4">
+                                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                                    <h2 className="text-lg font-bold text-white">{grupo.title}</h2>
+                                    <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
+                                        {itens.length} placas
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {itens.map(p => (
+                                        <PlacaCard
+                                            key={p.id}
+                                            placa={p}
+                                            onEditar={handleEditarDestino}
+                                            onDeletar={handleDeletar}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        );
+                    })}
                 </div>
             );
         }
