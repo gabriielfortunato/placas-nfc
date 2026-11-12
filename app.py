@@ -45,6 +45,13 @@ HTML_PAINEL = """
 <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div id="root"></div>
 
+    <style>
+        .qr-preview img, .qr-preview canvas {
+            width: 160px;
+            height: 160px;
+            image-rendering: pixelated;
+        }
+    </style>
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
@@ -136,7 +143,7 @@ HTML_PAINEL = """
                             />
                             <input
                                 type="url"
-                                placeholder="URL Destino (ex: instagram.com/loja)"
+                                placeholder="URL Destino (ex: https://instagram.com/loja)"
                                 required
                                 value={destino}
                                 onChange={e => setDestino(e.target.value)}
@@ -173,8 +180,8 @@ HTML_PAINEL = """
                     // O QR Code aponta SEMPRE para o link fixo do seu servidor Flask
                     new QRCode(qrRef.current, {
                         text: urlFixaNfc,
-                        width: 130,
-                        height: 130,
+                        width: 512,
+                        height: 512,
                         colorDark: "#000000",
                         colorLight: "#ffffff"
                     });
@@ -199,7 +206,29 @@ HTML_PAINEL = """
                     </div>
 
                     {/* Container onde o QR Code imutável é renderizado */}
-                    <div className="bg-white p-3 rounded-xl flex justify-center border-2 border-slate-800" ref={qrRef}></div>
+                    <div className="bg-white p-3 rounded-xl flex justify-center border-2 border-slate-800 qr-preview" ref={qrRef}></div>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const canvas = qrRef.current?.querySelector('canvas');
+                            const img = qrRef.current?.querySelector('img');
+                            const dataUrl = canvas ? canvas.toDataURL('image/png') : (img?.src || null);
+                            if (!dataUrl) {
+                                alert('Não foi possível gerar a imagem do QR Code. Tente novamente.');
+                                return;
+                            }
+                            const link = document.createElement('a');
+                            link.href = dataUrl;
+                            link.download = `qrcode_${placa.slug}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                        }}
+                        className="w-full bg-sky-600 hover:bg-sky-500 text-white text-xs py-2.5 rounded-xl transition font-bold"
+                    >
+                        Baixar QR Code (PNG)
+                    </button>
 
                     <div className="flex gap-2">
                         <button
