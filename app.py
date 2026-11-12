@@ -1,9 +1,11 @@
 import os
 import sqlite3
 import uuid
+from datetime import timedelta
 from urllib.parse import urlparse
 
-from flask import Flask, request, redirect, jsonify, render_template_string
+from flask import Flask, request, redirect, jsonify, render_template_string, session, url_for
+from werkzeug.security import check_password_hash
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 USE_POSTGRES = bool(DATABASE_URL)
@@ -17,6 +19,60 @@ if USE_POSTGRES:
         raise RuntimeError("DATABASE_URL foi configurada, mas psycopg não está instalado.") from exc
 
 app = Flask(__name__)
+app.config.update(
+    SECRET_KEY=os.environ.get("SECRET_KEY") or os.urandom(32),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
+
+LOGIN_HTML = """
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar | PlacaGO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-5">
+    <main class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-2xl">
+        <div class="text-center mb-7">
+            <h1 class="text-3xl font-bold text-white">Placa<span class="text-sky-400">GO</span></h1>
+            <p class="text-sm text-slate-400 mt-2">Acesso administrativo</p>
+        </div>
+        {% if erro %}
+        <div class="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{{ erro }}</div>
+        {% endif %}
+        <form method="post" class="space-y-4">
+            <div>
+                <label for="username" class="block text-xs font-semibold text-slate-300 mb-2">Usuário</label>
+                <input id="username" name="username" autocomplete="username" required
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-sky-500">
+            </div>
+            <div>
+                <label for="password" class="block text-xs font-semibold text-slate-300 mb-2">Senha</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required
+                    class="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-sky-500">
+            </div>
+            <button type="submit" class="w-full rounded-xl bg-sky-600 hover:bg-sky-500 py-3 text-sm font-bold text-white">Entrar</button>
+        </form>
+    </main>
+</body>
+</html>
+"""
+
+@app.before_request
+def exigir_login():
+    if request.endpoint in ("login", "logout", "redirecionar", "static"):
+        return None
+    if not session.get("authenticated"):
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Autenticação necessária."}), 401
+        return redirect(url_for("login", next=request.path))
+    return None
+
 
 # ==========================================
 # 1. BANCO DE DADOS
@@ -174,6 +230,7 @@ HTML_PAINEL = """
             const [slug, setSlug] = useState('');
             const [destino, setDestino] = useState('');
             const [categoria, setCategoria] = useState('google');
+            const [abaAtiva, setAbaAtiva] = useState('instagram');
 
             const carregarPlacas = async () => {
                 const res = await fetch('/api/placas');
@@ -278,44 +335,63 @@ HTML_PAINEL = """
                         </form>
                     </section>
 
-                    {/* Lista de Placas agrupada por categoria e em ordem numerica */}
-                    {[
-                        { key: 'instagram', title: 'Instagram', prefix: 'insta-' },
-                        { key: 'whatsapp', title: 'WhatsApp', prefix: 'whatsapp-' },
-                        { key: 'google', title: 'Google', prefix: 'google-' },
-                        { key: 'outros', title: 'Outras placas', prefix: '' }
-                    ].map(grupo => {
-                        const itens = placas
-                            .filter(p => grupo.key === 'outros'
-                                ? !['instagram', 'whatsapp', 'google'].includes(String(p.categoria || '').toLowerCase())
-                                : String(p.categoria || '').toLowerCase() === grupo.key)
-                            .sort((a, b) => {
-                                const numeroA = Number((a.slug.match(/(\\d+)$/) || [0, 0])[1]);
-                                const numeroB = Number((b.slug.match(/(\\d+)$/) || [0, 0])[1]);
-                                return numeroA - numeroB || a.slug.localeCompare(b.slug);
-                            });
-                        if (itens.length === 0) return null;
+                    {/* Abas de categorias: uma categoria por vez; tocar na aba ativa recolhe o conteúdo */}
+                    {(() => {
+                        const grupos = [
+                            { key: 'instagram', title: 'Instagram' },
+                            { key: 'whatsapp', title: 'WhatsApp' },
+                            { key: 'google', title: 'Google' },
+                            { key: 'outros', title: 'Outras placas' }
+                        ];
+                        const contar = (key) => placas.filter(p => key === 'outros'
+                            ? !['instagram', 'whatsapp', 'google'].includes(String(p.categoria || '').toLowerCase())
+                            : String(p.categoria || '').toLowerCase() === key).length;
                         return (
-                            <section key={grupo.key} className="space-y-4">
-                                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                                    <h2 className="text-lg font-bold text-white">{grupo.title}</h2>
-                                    <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">
-                                        {itens.length} placas
-                                    </span>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {itens.map(p => (
-                                        <PlacaCard
-                                            key={p.id}
-                                            placa={p}
-                                            onEditar={handleEditarDestino}
-                                            onDeletar={handleDeletar}
-                                        />
+                            <section className="space-y-5">
+                                <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3" role="tablist" aria-label="Categorias de placas">
+                                    {grupos.map(grupo => (
+                                        <button
+                                            key={grupo.key}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={abaAtiva === grupo.key}
+                                            onClick={() => setAbaAtiva(abaAtiva === grupo.key ? null : grupo.key)}
+                                            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition ${abaAtiva === grupo.key ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}`}
+                                        >
+                                            {grupo.title}
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] ${abaAtiva === grupo.key ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'}`}>{contar(grupo.key)}</span>
+                                        </button>
                                     ))}
                                 </div>
+                                {abaAtiva ? grupos.filter(grupo => grupo.key === abaAtiva).map(grupo => {
+                                    const itens = placas
+                                        .filter(p => grupo.key === 'outros'
+                                            ? !['instagram', 'whatsapp', 'google'].includes(String(p.categoria || '').toLowerCase())
+                                            : String(p.categoria || '').toLowerCase() === grupo.key)
+                                        .sort((a, b) => {
+                                            const numeroA = Number((a.slug.match(/(\\d+)$/) || [0, 0])[1]);
+                                            const numeroB = Number((b.slug.match(/(\\d+)$/) || [0, 0])[1]);
+                                            return numeroA - numeroB || a.slug.localeCompare(b.slug);
+                                        });
+                                    return (
+                                        <div key={grupo.key} role="tabpanel" className="space-y-4">
+                                            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                                                <h2 className="text-lg font-bold text-white">{grupo.title}</h2>
+                                                <span className="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full">{itens.length} placas</span>
+                                            </div>
+                                            {itens.length ? (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                    {itens.map(p => (
+                                                        <PlacaCard key={p.id} placa={p} onEditar={handleEditarDestino} onDeletar={handleDeletar} />
+                                                    ))}
+                                                </div>
+                                            ) : <p className="text-sm text-slate-500 py-6">Ainda não há placas nesta categoria.</p>}
+                                        </div>
+                                    );
+                                }) : <p className="text-sm text-slate-500 py-6">Selecione uma categoria para visualizar as placas. Toque novamente na aba ativa para recolher.</p>}
                             </section>
                         );
-                    })}
+                    })()}
                 </div>
             );
         }
@@ -407,6 +483,38 @@ HTML_PAINEL = """
 # ==========================================
 # 3. ROTAS DA API E REDIRECIONADOR
 # ==========================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get("authenticated"):
+        return redirect(url_for("index"))
+
+    erro = None
+    if request.method == "POST":
+        usuario_configurado = os.environ.get("ADMIN_USERNAME", "")
+        hash_configurado = os.environ.get("ADMIN_PASSWORD_HASH", "")
+        usuario = request.form.get("username", "")
+        senha = request.form.get("password", "")
+
+        if not usuario_configurado or not hash_configurado:
+            return render_template_string(LOGIN_HTML, erro="Login administrativo não configurado."), 503
+
+        if usuario == usuario_configurado and check_password_hash(hash_configurado, senha):
+            session.clear()
+            session["authenticated"] = True
+            session.permanent = True
+            return redirect(request.args.get("next") if request.args.get("next", "").startswith("/") and not request.args.get("next", "").startswith("//") else url_for("index"))
+
+        erro = "Usuário ou senha incorretos."
+
+    return render_template_string(LOGIN_HTML, erro=erro)
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
 
 @app.route('/')
 def index():
