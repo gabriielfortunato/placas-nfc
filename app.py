@@ -1,30 +1,143 @@
-from flask import Flask, request, redirect, jsonify, render_template_string
+import os
 import sqlite3
+import uuid
+from urllib.parse import urlparse
+
+from flask import Flask, request, redirect, jsonify, render_template_string
+
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+USE_POSTGRES = bool(DATABASE_URL)
+
+if USE_POSTGRES:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        from psycopg.errors import UniqueViolation
+    except ImportError as exc:
+        raise RuntimeError("DATABASE_URL foi configurada, mas psycopg não está instalado.") from exc
 
 app = Flask(__name__)
 
 # ==========================================
-# 1. BANCO DE DADOS (SQLite)
+# 1. BANCO DE DADOS
 # ==========================================
 def get_db():
-    conn = sqlite3.connect('placas.db')
+    if USE_POSTGRES:
+        return psycopg.connect(DATABASE_URL, row_factory=dict_row, connect_timeout=10)
+    conn = sqlite3.connect(os.environ.get("DATABASE_PATH", "placas.db"))
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def init_db():
     conn = get_db()
-    conn.execute('''CREATE TABLE IF NOT EXISTS placas
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                     cliente TEXT NOT NULL,
-                     slug TEXT UNIQUE NOT NULL,
-                     categoria TEXT DEFAULT 'google',
-                     destino TEXT NOT NULL,
-                     localizacao TEXT DEFAULT '',
-                     ativo INTEGER DEFAULT 1,
-                     acessos INTEGER DEFAULT 0,
-                     criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    conn.commit()
-    conn.close()
+    try:
+        if USE_POSTGRES:
+            # O Neon já possui o esquema public.plates. Esta consulta valida
+            # a conexão e a estrutura sem alterar nem apagar dados.
+            conn.execute("SELECT id, slug, client_name, category, target_url, active, scans, location, created_at FROM public.plates LIMIT 0")
+        else:
+            conn.execute("""CREATE TABLE IF NOT EXISTS placas
+                (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 cliente TEXT NOT NULL,
+                 slug TEXT UNIQUE NOT NULL,
+                 categoria TEXT DEFAULT 'google',
+                 destino TEXT NOT NULL,
+                 localizacao TEXT DEFAULT '',
+                 ativo INTEGER DEFAULT 1,
+                 acessos INTEGER DEFAULT 0,
+                 criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_placas():
+    conn = get_db()
+    try:
+        if USE_POSTGRES:
+            rows = conn.execute("""
+                SELECT id, client_name AS cliente, slug,
+                       category AS categoria, target_url AS destino,
+                       location AS localizacao, active AS ativo,
+                       scans AS acessos, created_at AS criado_em
+                FROM public.plates ORDER BY created_at DESC
+            """).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM placas ORDER BY id DESC").fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def create_placa(data):
+    conn = get_db()
+    try:
+        if USE_POSTGRES:
+            conn.execute("""
+                INSERT INTO public.plates
+                    (id, client_name, slug, category, target_url, location, active, scans)
+                VALUES (%s, %s, %s, %s, %s, %s, TRUE, 0)
+            """, (str(uuid.uuid4()), data["cliente"], data["slug"],
+                  data.get("categoria", "google"), data["destino"],
+                  data.get("localizacao", "")))
+        else:
+            conn.execute(
+                "INSERT INTO placas (cliente, slug, destino) VALUES (?, ?, ?)",
+                (data["cliente"], data["slug"], data["destino"])
+            )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def update_destino(slug, destino):
+    conn = get_db()
+    try:
+        if USE_POSTGRES:
+            conn.execute("""
+                UPDATE public.plates
+                SET target_url = %s, updated_at = NOW()
+                WHERE slug = %s
+            """, (destino, slug))
+        else:
+            conn.execute("UPDATE placas SET destino = ? WHERE slug = ?", (destino, slug))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_placa(slug):
+    conn = get_db()
+    try:
+        if USE_POSTGRES:
+            conn.execute("DELETE FROM public.plates WHERE slug = %s", (slug,))
+        else:
+            conn.execute("DELETE FROM placas WHERE slug = ?", (slug,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_destino(slug):
+    conn = get_db()
+    try:
+        if USE_POSTGRES:
+            row = conn.execute(
+                "SELECT target_url AS destino FROM public.plates WHERE slug = %s AND active = TRUE",
+                (slug,)
+            ).fetchone()
+            if row:
+                conn.execute("UPDATE public.plates SET scans = scans + 1, updated_at = NOW() WHERE slug = %s", (slug,))
+        else:
+            row = conn.execute("SELECT destino FROM placas WHERE slug = ? AND ativo = 1", (slug,)).fetchone()
+            if row:
+                conn.execute("UPDATE placas SET acessos = acessos + 1 WHERE slug = ?", (slug,))
+        conn.commit()
+        return row["destino"] if row else None
+    finally:
+        conn.close()
 
 # ==========================================
 # 2. FRONT-END INTEGRADO (PlacaGO React)
@@ -115,7 +228,7 @@ HTML_PAINEL = """
                 <div className="max-w-6xl mx-auto p-6 space-y-8">
                     <header className="flex justify-between items-center border-b border-slate-800 pb-4">
                         <h1 className="text-2xl font-bold text-white">Placa<span className="text-sky-400">GO</span> - QR Code Dinâmico Fixo</h1>
-                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20">Flask + SQLite Active</span>
+                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20">Flask + Banco de Dados</span>
                     </header>
 
                     {/* Form de Cadastro */}
@@ -262,66 +375,66 @@ HTML_PAINEL = """
 def index():
     return render_template_string(HTML_PAINEL)
 
+
 @app.route('/api/placas', methods=['GET', 'POST'])
 def api_placas():
-    conn = get_db()
     if request.method == 'POST':
-        data = request.json
-        try:
-            conn.execute(
-                'INSERT INTO placas (cliente, slug, destino) VALUES (?, ?, ?)',
-                (data['cliente'], data['slug'], data['destino'])
-            )
-            conn.commit()
-            return jsonify({'status': 'sucesso'})
-        except sqlite3.IntegrityError:
-            return jsonify({'erro': 'Este identificador (slug) já está em uso por outra placa.'}), 400
-        finally:
-            conn.close()
+        data = request.get_json(silent=True) or {}
+        cliente = str(data.get('cliente', '')).strip()
+        slug = str(data.get('slug', '')).strip().lower()
+        destino = str(data.get('destino', '')).strip()
 
-    cur = conn.execute('SELECT * FROM placas ORDER BY id DESC')
-    placas = [dict(row) for row in cur.fetchall()]
-    conn.close()
-    return jsonify(placas)
+        if not cliente or not slug or not destino:
+            return jsonify({'erro': 'Preencha cliente, slug e URL de destino.'}), 400
+        if not slug or any(ch not in 'abcdefghijklmnopqrstuvwxyz0123456789-' for ch in slug):
+            return jsonify({'erro': 'O slug deve conter apenas letras sem acento, números e hífens.'}), 400
+
+        try:
+            create_placa({'cliente': cliente, 'slug': slug, 'destino': destino})
+            return jsonify({'status': 'sucesso'})
+        except Exception as exc:
+            if USE_POSTGRES and isinstance(exc, UniqueViolation):
+                return jsonify({'erro': 'Este identificador (slug) já está em uso por outra placa.'}), 400
+            if not USE_POSTGRES and isinstance(exc, sqlite3.IntegrityError):
+                return jsonify({'erro': 'Este identificador (slug) já está em uso por outra placa.'}), 400
+            app.logger.exception("Falha ao cadastrar placa")
+            return jsonify({'erro': 'Não foi possível salvar a placa. Tente novamente.'}), 500
+
+    try:
+        return jsonify(get_placas())
+    except Exception:
+        app.logger.exception("Falha ao listar placas")
+        return jsonify({'erro': 'Não foi possível carregar as placas.'}), 500
+
 
 @app.route('/api/placas/<slug>', methods=['PUT', 'DELETE'])
 def gerenciar_placa(slug):
-    conn = get_db()
     if request.method == 'PUT':
-        data = request.json
-        conn.execute('UPDATE placas SET destino = ? WHERE slug = ?', (data['destino'], slug))
-        conn.commit()
-        conn.close()
+        data = request.get_json(silent=True) or {}
+        destino = str(data.get('destino', '')).strip()
+        if not destino:
+            return jsonify({'erro': 'Informe uma URL de destino válida.'}), 400
+        update_destino(slug, destino)
         return jsonify({'status': 'atualizado'})
 
-    if request.method == 'DELETE':
-        conn.execute('DELETE FROM placas WHERE slug = ?', (slug,))
-        conn.commit()
-        conn.close()
-        return jsonify({'status': 'deletado'})
+    delete_placa(slug)
+    return jsonify({'status': 'deletado'})
 
-# ROTA DE REDIRECIONAMENTO HTTP 302 (Usada nos QR Codes e Tags NFC)
+
 @app.route('/r/<slug>')
 def redirecionar(slug):
-    conn = get_db()
-    cur = conn.execute('SELECT destino FROM placas WHERE slug = ?', (slug,))
-    row = cur.fetchone()
+    destino = get_destino(slug)
+    if not destino:
+        return "<h1>Placa não encontrada ou inativa no sistema.</h1>", 404
 
-    if row:
-        # Incrementa métrica de leitura
-        conn.execute('UPDATE placas SET acessos = acessos + 1 WHERE slug = ?', (slug,))
-        conn.commit()
-        conn.close()
-        
-        destino = row['destino']
-        if not destino.startswith('http://') and not destino.startswith('https://'):
-            destino = 'https://' + destino
-            
-        return redirect(destino, code=302)
+    if not destino.startswith(('http://', 'https://')):
+        destino = 'https://' + destino
 
-    conn.close()
-    return "<h1>Placa não encontrada ou inativa no sistema.</h1>", 404
+    return redirect(destino, code=302)
+
+
+# Inicializa/verifica o banco também quando Gunicorn importa o módulo.
+init_db()
 
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
