@@ -286,7 +286,12 @@ HTML_PAINEL = """
                 <div className="max-w-6xl mx-auto p-6 space-y-8">
                     <header className="flex justify-between items-center border-b border-slate-800 pb-4">
                         <h1 className="text-2xl font-bold text-white">Placa<span className="text-sky-400">GO</span> - QR Code Dinâmico Fixo</h1>
-                        <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20">Flask + Banco de Dados</span>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20">Acesso protegido</span>
+                            <form method="post" action="/logout">
+                                <button type="submit" className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700">Sair</button>
+                            </form>
+                        </div>
                     </header>
 
                     {/* Form de Cadastro */}
