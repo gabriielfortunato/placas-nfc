@@ -173,6 +173,7 @@ HTML_PAINEL = """
             const [cliente, setCliente] = useState('');
             const [slug, setSlug] = useState('');
             const [destino, setDestino] = useState('');
+            const [categoria, setCategoria] = useState('google');
 
             const carregarPlacas = async () => {
                 const res = await fetch('/api/placas');
@@ -191,7 +192,7 @@ HTML_PAINEL = """
                 const res = await fetch('/api/placas', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cliente, slug: slugLimpo, destino })
+                    body: JSON.stringify({ cliente, slug: slugLimpo, destino, categoria })
                 });
 
                 if (res.ok) {
@@ -254,6 +255,15 @@ HTML_PAINEL = """
                                 onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
                                 className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono"
                             />
+                            <select
+                                value={categoria}
+                                onChange={e => setCategoria(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white"
+                            >
+                                <option value="instagram">Instagram</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="google">Google</option>
+                            </select>
                             <input
                                 type="url"
                                 placeholder="URL Destino (ex: https://instagram.com/loja)"
@@ -410,6 +420,10 @@ def api_placas():
         cliente = str(data.get('cliente', '')).strip()
         slug = str(data.get('slug', '')).strip().lower()
         destino = str(data.get('destino', '')).strip()
+        categoria = str(data.get('categoria', 'google')).strip().lower()
+
+        if categoria not in ('instagram', 'whatsapp', 'google'):
+            return jsonify({'erro': 'Selecione uma categoria válida.'}), 400
 
         if not cliente or not slug or not destino:
             return jsonify({'erro': 'Preencha cliente, slug e URL de destino.'}), 400
@@ -417,7 +431,7 @@ def api_placas():
             return jsonify({'erro': 'O slug deve conter apenas letras sem acento, números e hífens.'}), 400
 
         try:
-            create_placa({'cliente': cliente, 'slug': slug, 'destino': destino})
+            create_placa({'cliente': cliente, 'slug': slug, 'destino': destino, 'categoria': categoria})
             return jsonify({'status': 'sucesso'})
         except Exception as exc:
             if USE_POSTGRES and isinstance(exc, UniqueViolation):
