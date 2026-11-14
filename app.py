@@ -250,7 +250,7 @@ HTML_PAINEL = """
 
             const handleCadastrar = async (e) => {
                 e.preventDefault();
-                const slugLimpo = slug.trim().toLowerCase().replace(/\s+/g, '-');
+                const slugLimpo = slug.trim().toLowerCase().replace(/\\s+/g, '-');
                 
                 const res = await fetch('/api/placas', {
                     method: 'POST',
@@ -320,7 +320,7 @@ HTML_PAINEL = """
                                 placeholder="Slug Fixo (ex: barbearia-top)"
                                 required
                                 value={slug}
-                                onChange={e => setSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                                onChange={e => setSlug(e.target.value.toLowerCase().replace(/\\s+/g, '-'))}
                                 className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono"
                             />
                             <select
