@@ -63,9 +63,15 @@ LOGIN_HTML = """
 </html>
 """
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Endpoint público para monitoramento de disponibilidade."""
+    return jsonify({"status": "ok"}), 200
+
+
 @app.before_request
 def exigir_login():
-    if request.endpoint in ("login", "logout", "redirecionar", "static"):
+    if request.endpoint in ("health_check", "login", "logout", "redirecionar", "static"):
         return None
     if not session.get("authenticated"):
         if request.path.startswith("/api/"):
